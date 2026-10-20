@@ -1,0 +1,13 @@
+# Never ship local secrets or host artifacts into the image.
+.git
+.next
+node_modules
+tmp
+coverage
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+Dockerfile
+docker-compose.yml

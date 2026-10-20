@@ -1,0 +1,30 @@
+# Alternative to Docker: run `npm run build` output directly with systemd.
+# Install:  sudo cp deploy/zav.service /etc/systemd/system/zav.service
+#           sudo systemctl daemon-reload && sudo systemctl enable --now zav
+
+[Unit]
+Description=Зав байна (Next.js app)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zav
+Group=zav
+WorkingDirectory=/opt/zav
+# Runtime secrets, mode 600, owned by the app user. Never baked into the image.
+EnvironmentFile=/etc/zav/env
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/bin/node .next/standalone/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/zav/.next
+
+[Install]
+WantedBy=multi-user.target

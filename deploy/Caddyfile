@@ -1,0 +1,52 @@
+# Reverse proxy for Зав байна — both hosts, one app.
+# The app only listens on 127.0.0.1:3000, so these are the only public names.
+
+{
+	admin off
+}
+
+zav.baina.mn {
+	# Overwrite the forwarded headers: the app reads X-Forwarded-Host to decide
+	# which host was requested. Never let a client value pass through.
+	reverse_proxy 127.0.0.1:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	header {
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	log {
+		output file /var/log/caddy/zav-baina.log
+	}
+}
+
+admin.zav.baina.mn {
+	reverse_proxy 127.0.0.1:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Staff pages must never be indexed.
+	header X-Robots-Tag "noindex, nofollow"
+	header {
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	log {
+		output file /var/log/caddy/zav-baina-admin.log
+	}
+}

@@ -198,3 +198,37 @@ DATABASE_URL=postgresql://...
 **Анхааруулга:** Supabase-ийн үнэгүй төсөл 7 хоног идэвхгүй бол түр зогсдог.
 Хэрэглэгч ирж эхэлмэгц төлбөрт төлөвлөгөө рүү шилжинэ үү.
 # zav
+
+## 8. Vercel-д байрлуулах
+
+Одоо байгаа Docker болон VPS тохиргоог өөрчлөхгүй. Vercel-ийн build орчинд
+`output: "standalone"`-ийг автоматаар алгасах тул тусгай `vercel.json` хэрэггүй.
+
+1. GitHub репозиторыг Vercel-д импортолж, **Node.js 22.x** сонгоно.
+2. Project Settings → Environment Variables хэсэгт **Production** орчинд дараах
+   хувьсагчуудыг тохируулна:
+
+   | Хувьсагч | Production утга |
+   | --- | --- |
+   | `NEXT_PUBLIC_SUPABASE_URL` | Supabase төслийн URL |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase-ийн publishable/anon key |
+   | `NEXT_PUBLIC_SITE_HOST` | `zav.baina.mn` |
+   | `NEXT_PUBLIC_STAFF_HOST` | `admin.zav.baina.mn` |
+
+   `NEXT_PUBLIC_*` утгууд build үеэр кодод шингэдэг тул утга нэмэх эсвэл өөрчлөх
+   бүрдээ дахин deploy хийнэ. `service_role` key болон `DATABASE_URL`-ийг Vercel
+   дээр нэмэх шаардлагагүй; `service_role` key-г браузерт хэзээ ч бүү тавь.
+3. Project → Settings → Domains дээр `zav.baina.mn`, `admin.zav.baina.mn`
+   хоёуланг нь **нэг project**-д нэмээд, Vercel-ийн заасан DNS бичлэгүүдийг
+   домэйн үйлчилгээ үзүүлэгч дээрээ оруулна.
+4. Supabase → Authentication → URL Configuration дээр Site URL-ийг
+   `https://zav.baina.mn` болгож, Redirect URLs-д
+   `https://zav.baina.mn/**` болон `https://admin.zav.baina.mn/**`-г нэмнэ.
+5. GitHub-ийн үндсэн branch-ийг deploy хийнэ. Хостын зөвшөөрөл зөвхөн дээрх хоёр
+   production домэйныг хүлээн авдаг тул Vercel-ийн preview URL-ууд 404 буцаах нь
+   зориудын хамгаалалт юм.
+
+Vercel-ийн Environment Variables дотор `DATABASE_URL` нэмсэн ч `db:apply`,
+`super:make` зэрэг CLI скриптүүд автоматаар ажиллахгүй. Өгөгдлийн сангийн SQL-ийг
+төслөө анх бэлдэхдээ нэг удаа гараар хэрэгжүүлж, эхний супер админыг итгэмжлэгдсэн
+орчноос `npm run super:make -- email@example.com` командаар үүсгэнэ.

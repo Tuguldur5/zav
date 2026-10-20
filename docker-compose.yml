@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      # NEXT_PUBLIC_* values are inlined at BUILD time — production values go here.
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_SITE_HOST: ${NEXT_PUBLIC_SITE_HOST:-zav.baina.mn}
+        NEXT_PUBLIC_STAFF_HOST: ${NEXT_PUBLIC_STAFF_HOST:-admin.zav.baina.mn}
+    image: zav-baina:latest
+    restart: unless-stopped
+    # Loopback only: never expose the app directly.
+    ports:
+      - "127.0.0.1:3000:3000"
+    # Runtime secrets (DATABASE_* are scripts-only; the app needs no DB port).
+    env_file:
+      - /etc/zav/env
+    environment:
+      NEXT_PUBLIC_SITE_HOST: ${NEXT_PUBLIC_SITE_HOST:-zav.baina.mn}
+      NEXT_PUBLIC_STAFF_HOST: ${NEXT_PUBLIC_STAFF_HOST:-admin.zav.baina.mn}
