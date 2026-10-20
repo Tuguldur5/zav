@@ -205,28 +205,30 @@ DATABASE_URL=postgresql://...
 `output: "standalone"`-ийг автоматаар алгасах тул тусгай `vercel.json` хэрэггүй.
 
 1. GitHub репозиторыг Vercel-д импортолж, **Node.js 22.x** сонгоно.
-2. Project Settings → Environment Variables хэсэгт **Production** орчинд дараах
-   хувьсагчуудыг тохируулна:
+2. Project Settings → Environment Variables хэсэгт **Production** орчинд:
 
-   | Хувьсагч | Production утга |
+   | Хувьсагч | Утга |
    | --- | --- |
    | `NEXT_PUBLIC_SUPABASE_URL` | Supabase төслийн URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase-ийн publishable/anon key |
-   | `NEXT_PUBLIC_SITE_HOST` | `zav.baina.mn` |
-   | `NEXT_PUBLIC_STAFF_HOST` | `admin.zav.baina.mn` |
+   | `NEXT_PUBLIC_SITE_HOST` | Vercel → Settings → Domains дээрх `your-project.vercel.app` хаяг, `https://`-гүй |
 
-   `NEXT_PUBLIC_*` утгууд build үеэр кодод шингэдэг тул утга нэмэх эсвэл өөрчлөх
-   бүрдээ дахин deploy хийнэ. `service_role` key болон `DATABASE_URL`-ийг Vercel
-   дээр нэмэх шаардлагагүй; `service_role` key-г браузерт хэзээ ч бүү тавь.
-3. Project → Settings → Domains дээр `zav.baina.mn`, `admin.zav.baina.mn`
-   хоёуланг нь **нэг project**-д нэмээд, Vercel-ийн заасан DNS бичлэгүүдийг
-   домэйн үйлчилгээ үзүүлэгч дээрээ оруулна.
-4. Supabase → Authentication → URL Configuration дээр Site URL-ийг
-   `https://zav.baina.mn` болгож, Redirect URLs-д
-   `https://zav.baina.mn/**` болон `https://admin.zav.baina.mn/**`-г нэмнэ.
-5. GitHub-ийн үндсэн branch-ийг deploy хийнэ. Хостын зөвшөөрөл зөвхөн дээрх хоёр
-   production домэйныг хүлээн авдаг тул Vercel-ийн preview URL-ууд 404 буцаах нь
-   зориудын хамгаалалт юм.
+   Vercel өөрөө `VERCEL_PROJECT_PRODUCTION_URL` болон `VERCEL_URL`-г өгдөг тул
+   `.vercel.app` хостыг хэрэглэгчийн сайт гэж танина. Гэхдээ `NEXT_PUBLIC_SITE_HOST`-ийг
+   Production URL-тай ижил болгосноор и-мэйлийн холбоос зөв домэйнд очно.
+   `NEXT_PUBLIC_*` утгууд build үеэр кодод шингэдэг тул өөрчилсний дараа дахин deploy
+   хийнэ. `service_role` key болон `DATABASE_URL`-ийг Vercel дээр нэмэх шаардлагагүй;
+   `service_role` key-г браузерт хэзээ ч бүү тавь.
+3. Production deployment-ийн `your-project.vercel.app` URL-ийг ашиглана. Preview
+   deployment URL ч хэрэглэгчийн сайт гэж танигдана. Vercel-ийн Project → Settings →
+   Domains хэсэгт харагдах project-ийн production URL-ийг Supabase → Authentication →
+   URL Configuration дотор Site URL болгоод, Redirect URLs-д
+   `https://your-project.vercel.app/**`-г нэмнэ.
+4. Одоогийн админ тусдаа хост (`admin.zav.baina.mn`) шаарддаг. Vercel-ийн ганц
+   `.vercel.app` хаягийг хэрэглэгч ба ажилтны хоёр хост болгож давхар ашиглаж болохгүй.
+   Админыг production-д ашиглахын тулд тусдаа домэйн авч Vercel Domains-д нэмээд,
+   `NEXT_PUBLIC_STAFF_HOST`-д `admin.your-domain.mn` гэж тохируулна.
+5. GitHub-ийн үндсэн branch-ийг deploy хийнэ.
 
 Vercel-ийн Environment Variables дотор `DATABASE_URL` нэмсэн ч `db:apply`,
 `super:make` зэрэг CLI скриптүүд автоматаар ажиллахгүй. Өгөгдлийн сангийн SQL-ийг

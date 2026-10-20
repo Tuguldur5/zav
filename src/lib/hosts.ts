@@ -5,6 +5,8 @@
 
 export const SITE_HOST = (process.env.NEXT_PUBLIC_SITE_HOST ?? "").trim().toLowerCase();
 export const STAFF_HOST = (process.env.NEXT_PUBLIC_STAFF_HOST ?? "").trim().toLowerCase();
+const VERCEL_PROJECT_HOST = (process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "").trim().toLowerCase();
+const VERCEL_DEPLOYMENT_HOST = (process.env.VERCEL_URL ?? "").trim().toLowerCase();
 
 export const LOCAL_SITE_HOST = "localhost:3000";
 export const LOCAL_SITE_HOST_ALT = "zav.localhost:3000";
@@ -22,6 +24,12 @@ export function hostKind(host: string): HostKind {
   if (!host) return "unknown";
   if (STAFF_HOST && host === STAFF_HOST) return "staff";
   if (SITE_HOST && host === SITE_HOST) return "site";
+  if (
+    (VERCEL_PROJECT_HOST && host === VERCEL_PROJECT_HOST) ||
+    (VERCEL_DEPLOYMENT_HOST && host === VERCEL_DEPLOYMENT_HOST)
+  ) {
+    return "site";
+  }
   if (host === LOCAL_SITE_HOST || host === LOCAL_SITE_HOST_ALT) return "site";
   if (host === LOCAL_STAFF_HOST) return "staff";
   // `next dev` forwards the socket address (and picks a free port when 3000 is
@@ -35,7 +43,7 @@ export function hostKind(host: string): HostKind {
 }
 
 export function siteHost(): string {
-  return SITE_HOST || SITE_HOST_FALLBACK;
+  return SITE_HOST || VERCEL_PROJECT_HOST || VERCEL_DEPLOYMENT_HOST || SITE_HOST_FALLBACK;
 }
 
 /** Absolute URL on the user host, used in links and emails. */
