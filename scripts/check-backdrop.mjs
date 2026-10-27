@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { loadEnv, resolveAppBase } from "./env.mjs";
 
 loadEnv();
@@ -11,12 +11,32 @@ const WIDTHS = [
   { width: 390, height: 844 },
   { width: 1440, height: 900 },
 ];
-const MIN_SPREAD = 14;
+const TOLERANCE = 2;
+
+/**
+ * The public design is ONE flat warm-paper plane: the page colour comes from
+ * --bg, no gradients, no glows, no second wrapper painting over it. This check
+ * samples the rendered page and proves exactly that.
+ */
+const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
+function token(name) {
+  const match = css.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6});`));
+  return match ? match[1] : null;
+}
+const EXPECTED_BG = token("bg");
+const INK = token("ink");
+const ACCENT = token("primary");
+
+if (!EXPECTED_BG || !INK || !ACCENT) {
+  console.log("FAIL  check-backdrop: --bg, --ink or --primary is missing from globals.css.");
+  process.exit(1);
+}
 
 const routes = [
   { path: "/", name: "landing" },
   { path: "/login", name: "login" },
-  { path: "/register?role=worker", name: "register" },
+  { path: "/register", name: "register" },
+  { path: "/terms", name: "terms" },
   { path: "/c", name: "customer", auth: true },
 ];
 
@@ -48,17 +68,27 @@ mkdirSync(SHOTS, { recursive: true });
 const hex = (c) =>
   `#${[c.r, c.g, c.b].map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 
-const distance = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
-
-function hsl({ r, g, b }) {
-  const [rr, gg, bb] = [r / 255, g / 255, b / 255];
-  const max = Math.max(rr, gg, bb);
-  const min = Math.min(rr, gg, bb);
-  const l = (max + min) / 2;
-  const d = max - min;
-  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
-  return { s: s * 100, l: l * 100 };
+function parseHex(value) {
+  const raw = value.replace("#", "");
+  return {
+    r: Number.parseInt(raw.slice(0, 2), 16),
+    g: Number.parseInt(raw.slice(2, 4), 16),
+    b: Number.parseInt(raw.slice(4, 6), 16),
+  };
 }
+
+function parseRgb(value) {
+  const match = value.match(/rgba?\(([^)]+)\)/);
+  if (!match) return null;
+  const [r, g, b] = match[1].split(",").map((part) => Number.parseFloat(part.trim()));
+  return { r, g, b };
+}
+
+const same = (a, b) =>
+  Boolean(a && b) &&
+  Math.abs(a.r - b.r) <= TOLERANCE &&
+  Math.abs(a.g - b.g) <= TOLERANCE &&
+  Math.abs(a.b - b.b) <= TOLERANCE;
 
 function luminance({ r, g, b }) {
   const [rr, gg, bb] = [r / 255, g / 255, b / 255].map((v) =>
@@ -72,9 +102,6 @@ function contrast(a, b) {
   return (light + 0.05) / (dark + 0.05);
 }
 
-const INK = { r: 15, g: 23, b: 42 };
-const ACCENT = { r: 7, g: 89, b: 133 };
-
 function pointsFor(width, height) {
   return [
     { name: "top-left", x: 6, y: 6 },
@@ -82,8 +109,8 @@ function pointsFor(width, height) {
     { name: "bottom-left", x: 6, y: height - 6 },
     { name: "bottom-right", x: width - 6, y: height - 6 },
     { name: "centre", x: width / 2, y: height / 2 },
-    { name: "glow-top-left", x: width * 0.1, y: height * 0.14 },
-    { name: "glow-right", x: width * 0.9, y: height * 0.2 },
+    { name: "upper-third", x: width * 0.1, y: height * 0.14 },
+    { name: "right-third", x: width * 0.9, y: height * 0.2 },
     { name: "bottom-centre", x: width / 2, y: height - 6 },
   ];
 }
@@ -123,12 +150,12 @@ async function samplePixels(page, buffer, points) {
 }
 
 /**
- * (b) No wrapper may cover the backdrop: find elements at 5 viewport points
- * that are larger than 90% of the viewport in both axes and paint an opaque
- * background of their own.
+ * No wrapper may paint a different plane over the page. A full-viewport
+ * element is allowed only when its colour matches the page (bg-bg wrappers are
+ * the same plane, not a cover).
  */
-async function findCovers(page) {
-  return page.evaluate(() => {
+async function findCovers(page, pageColor) {
+  return page.evaluate((pageColor) => {
     const width = window.innerWidth;
     const height = window.innerHeight;
     const probes = [
@@ -144,6 +171,16 @@ async function findCovers(page) {
       const parts = match[1].split(",").map((part) => part.trim());
       return parts.length < 4 || Number(parts[3]) >= 0.999;
     };
+    const sameColor = (color) => {
+      const match = color.match(/rgba?\(([^)]+)\)/);
+      if (!match) return false;
+      const [r, g, b] = match[1].split(",").map((part) => Number.parseFloat(part.trim()));
+      return (
+        Math.abs(r - pageColor.r) <= 2 &&
+        Math.abs(g - pageColor.g) <= 2 &&
+        Math.abs(b - pageColor.b) <= 2
+      );
+    };
     const covers = [];
     for (const [x, y] of probes) {
       for (const element of document.elementsFromPoint(x, y)) {
@@ -155,14 +192,15 @@ async function findCovers(page) {
         // phone is nearly viewport-wide, so only flat wrappers are a problem.
         if (Number.parseFloat(style.borderTopLeftRadius) >= 8) continue;
         const image = style.backgroundImage !== "none";
-        if (opaque(style.backgroundColor) || image) {
+        const paints = opaque(style.backgroundColor) && !sameColor(style.backgroundColor);
+        if (paints || image) {
           const label = `${element.tagName.toLowerCase()}.${String(element.className).slice(0, 48)}`;
           if (!covers.includes(label)) covers.push(label);
         }
       }
     }
     return covers;
-  });
+  }, pageColor);
 }
 
 const probe = await fetch(`${BASE}/`, {
@@ -177,6 +215,9 @@ if (!probe) {
 
 let failures = 0;
 let checked = 0;
+const expectedBg = parseHex(EXPECTED_BG);
+const ink = parseHex(INK);
+const accent = parseHex(ACCENT);
 
 for (const route of routes) {
   const response = await fetch(`${BASE}${route.path}`, {
@@ -208,11 +249,15 @@ for (const route of routes) {
       const image = getComputedStyle(document.body).backgroundImage;
       return { image, count: (image.match(/gradient\(/g) ?? []).length };
     });
-    const covers = await findCovers(page);
+    const bodyColor =
+      parseRgb(
+        await page.evaluate(() => getComputedStyle(document.body).backgroundColor),
+      ) ?? expectedBg;
+    const covers = await findCovers(page, bodyColor);
 
     await page.screenshot({ path: `${SHOTS}/${route.name}-${width}.png` });
 
-    // Hide the content but keep layout: every sampled pixel is the backdrop.
+    // Hide the content but keep layout: every sampled pixel is the page plane.
     await page.evaluate(() => {
       for (const child of document.body.children) {
         child.style.visibility = "hidden";
@@ -222,32 +267,14 @@ for (const route of routes) {
     const samples = await samplePixels(page, clean, pointsFor(width, height));
     const heroSamples = await samplePixels(page, clean, heroPointsFor(width, height));
 
-    const byName = Object.fromEntries(samples.map((sample) => [sample.name, sample]));
-    let spread = 0;
-    let pair = "";
-    for (let i = 0; i < samples.length; i += 1) {
-      for (let j = i + 1; j < samples.length; j += 1) {
-        const value = distance(samples[i], samples[j]);
-        if (value > spread) {
-          spread = value;
-          pair = `${samples[i].name}/${samples[j].name}`;
-        }
-      }
-    }
-
-    // The literal top-left point sits in the strongest part of the glow.
-    const glow = hsl(byName["top-left"]);
-    const ambient = hsl(byName["glow-top-left"]);
-    const bottom = hsl(byName["bottom-centre"]);
-    const glowWins = glow.s >= bottom.s + 5 || glow.l <= bottom.l - 4;
-    const flat = spread < MIN_SPREAD;
-    const gradientOk = gradients.count >= 4;
-
-    const inkMin = Math.min(...heroSamples.map((sample) => contrast(INK, sample)));
-    const accentMin = Math.min(...heroSamples.map((sample) => contrast(ACCENT, sample)));
+    const flat = samples.every((sample) => same(sample, expectedBg)) && same(bodyColor, expectedBg);
+    const gradientOk = gradients.count === 0;
+    const coverOk = covers.length === 0;
+    const inkMin = Math.min(...heroSamples.map((sample) => contrast(ink, sample)));
+    const accentMin = Math.min(...heroSamples.map((sample) => contrast(accent, sample)));
     const contrastOk = inkMin >= 7 && accentMin >= 4.5;
 
-    const ok = !flat && glowWins && covers.length === 0 && gradientOk && contrastOk;
+    const ok = flat && gradientOk && coverOk && contrastOk;
     if (!ok) failures += 1;
     checked += 1;
 
@@ -256,21 +283,16 @@ for (const route of routes) {
       `  colours  ${samples.map((sample) => `${sample.name} ${hex(sample)}`).join(" | ")}`,
     );
     console.log(
-      `  spread   ${spread.toFixed(1)} (${pair}) — minimum ${MIN_SPREAD}  ${flat ? "FAIL" : "ok"}`,
+      `  plane    body ${hex(bodyColor)} vs --bg ${EXPECTED_BG}  ${flat ? "ok" : "FAIL"}`,
     );
     console.log(
-      `  glow     top-left sat ${glow.s.toFixed(1)}% / light ${glow.l.toFixed(1)}% vs bottom ` +
-        `${bottom.s.toFixed(1)}% / ${bottom.l.toFixed(1)}%  ${glowWins ? "ok" : "FAIL"}` +
-        ` (ambient ${ambient.s.toFixed(1)}% / ${ambient.l.toFixed(1)}%)`,
+      `  cover    ${coverOk ? "none" : covers.join(" | ")}`,
     );
     console.log(
-      `  cover    ${covers.length === 0 ? "none" : covers.join(" | ")}`,
+      `  body     ${gradients.count} gradients  ${gradientOk ? "ok" : "FAIL (must be 0)"}`,
     );
     console.log(
-      `  body     ${gradients.count} gradients  ${gradientOk ? "ok" : "FAIL (need >= 4)"}`,
-    );
-    console.log(
-      `  contrast ink ${inkMin.toFixed(2)}:1 (min 7), #075985 ${accentMin.toFixed(2)}:1 (min 4.5)  ` +
+      `  contrast ink ${inkMin.toFixed(2)}:1 (min 7), accent ${accentMin.toFixed(2)}:1 (min 4.5)  ` +
         `${contrastOk ? "ok" : "FAIL"}`,
     );
 
@@ -279,20 +301,26 @@ for (const route of routes) {
 }
 
 /**
- * Staff routes paint a flat frame colour by design, so the public glow, cover
- * and gradient rules do not apply. Here the frame must BE the paper's colour
- * family: body background = --adm-frame, and the panel must stay light.
+ * Staff routes are deliberately plain: a WHITE page, no frame element and no
+ * fixed coloured wrapper. The /__kit shell previews run on the customer host
+ * (warm page), so for those the shell root itself must paint the white plane.
  */
 const staffRoutes = [
-  { path: "/login", name: "staff-login", host: STAFF_HOST },
-  { path: "/security", name: "staff-security", host: STAFF_HOST, auth: true },
-  { path: "/today", name: "staff-today", host: STAFF_HOST, auth: true },
+  { path: "/login", name: "staff-login", host: STAFF_HOST, page: true },
+  { path: "/security", name: "staff-security", host: STAFF_HOST, auth: true, page: true },
+  { path: "/today", name: "staff-today", host: STAFF_HOST, auth: true, page: true },
+  { path: "/profile", name: "staff-profile", host: STAFF_HOST, auth: true, page: true },
+  { path: "/notifications", name: "staff-notifications", host: STAFF_HOST, auth: true, page: true },
+  { path: "/super", name: "staff-super", host: STAFF_HOST, auth: true, page: true },
+  { path: "/super/settings", name: "staff-settings", host: STAFF_HOST, auth: true, page: true },
   { path: "/__kit/shell/admin", name: "staff-shell-admin", host: SITE_HOST },
   { path: "/__kit/shell/super", name: "staff-shell-super", host: SITE_HOST },
 ];
 
+const FRAME_SELECTORS =
+  ".staff-app, .paper, .staff-notch, .staff-rail, .staff-dock, .staff-aside, [data-staff-panel]";
+
 for (const route of staffRoutes) {
-  const port = new URL(`http://${SITE_HOST}`).port || "3000";
   const response = await fetch(`${BASE}${route.path}`, {
     headers: { Host: route.host, "X-Forwarded-Host": route.host },
     redirect: "manual",
@@ -308,7 +336,8 @@ for (const route of staffRoutes) {
   for (const { width, height } of WIDTHS) {
     const context = await browser.newContext({ viewport: { width, height } });
     const page = await context.newPage();
-    await page.goto(`http://${route.host}${route.path}`, { waitUntil: "networkidle" });
+    await page.goto(`http://${route.host}${route.path}`, { waitUntil: "load" });
+    await page.waitForTimeout(300);
     const pathname = new URL(page.url()).pathname;
     if (route.auth && pathname.startsWith("/login")) {
       console.log(`SKIP  ${route.name} @${width}px — redirected to ${pathname} (auth needed)`);
@@ -316,43 +345,43 @@ for (const route of staffRoutes) {
       continue;
     }
 
-    const result = await page.evaluate(() => {
-      const html = getComputedStyle(document.documentElement);
-      const frame = html.getPropertyValue("--adm-frame").trim().toLowerCase();
+    const result = await page.evaluate((selectors) => {
       const body = getComputedStyle(document.body).backgroundColor;
-      const panel =
-        document.querySelector(".paper") ??
-        document.querySelector(".staff-auth-card") ??
-        document.querySelector("[data-staff-panel]");
-      const panelBg = panel ? getComputedStyle(panel).backgroundColor : "none";
-      const channel = (value) => Number.parseFloat(value) / 255;
-      const luminance = (rgb) => {
-        const parts = rgb.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
-        const [r, g, b] = parts.slice(0, 3).map(channel).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      const htmlBg = getComputedStyle(document.documentElement).backgroundColor;
+      const frames = document.querySelectorAll(selectors).length;
+      const shell = document.querySelector("[data-staff-shell]");
+      return {
+        body,
+        htmlBg,
+        frames,
+        tone: document.documentElement.dataset.staffTone ?? "-",
+        shell: shell?.getAttribute("data-staff-shell") ?? "-",
+        shellBg: shell ? getComputedStyle(shell).backgroundColor : null,
       };
-      return { frame, body, panelBg, panelLight: panelBg === "none" ? false : luminance(panelBg) > 0.7 };
-    });
+    }, FRAME_SELECTORS);
 
-    const frameHex = result.frame
-      ? `rgb(${[1, 3, 5]
-          .map((index) => parseInt(result.frame.slice(index, index + 2), 16))
-          .join(", ")})`
-      : "";
-    const frameOk = frameHex ? result.body === frameHex : false;
-    const tone = await page.evaluate(() => document.documentElement.dataset.staffTone ?? "-" );
-    const ok = frameOk && result.panelLight;
+    const white = (value) => value === "rgb(255, 255, 255)";
+    const pageWhite = route.page ? white(result.body) : true;
+    const shellWhite = route.page ? true : white(result.shellBg);
+    const ok = pageWhite && shellWhite && result.frames === 0 && result.tone !== "public";
     checked += 1;
     if (!ok) failures += 1;
-    console.log(`\n${ok ? "PASS" : "FAIL"}  ${route.name} @${width}x${height} (tone ${tone})`);
     console.log(
-      `  frame    --adm-frame ${result.frame} — body ${result.body}  ${frameOk ? "ok" : "FAIL"}`,
+      `\n${ok ? "PASS" : "FAIL"}  ${route.name} @${width}x${height} (tone ${result.tone})`,
     );
     console.log(
-      `  paper    ${result.panelBg} — light panel ${result.panelLight ? "ok" : "FAIL"}`,
+      `  page     body ${result.body} html ${result.htmlBg}  ${pageWhite ? "ok" : "FAIL"}`,
     );
+    if (!route.page) {
+      console.log(
+        `  shell    ${result.shellBg}  ${shellWhite ? "ok" : "FAIL (shell must paint white)"}`,
+      );
+    }
+    console.log(
+      `  frame    frame elements ${result.frames}  ${result.frames === 0 ? "ok" : "FAIL"}`,
+    );
+    console.log(`  shell    data-staff-shell=${result.shell}`);
     await page.screenshot({ path: `${SHOTS}/${route.name}-${width}.png` });
-    void port;
     await context.close();
   }
 }

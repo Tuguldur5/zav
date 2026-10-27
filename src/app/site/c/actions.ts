@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { fieldErrors, jobSchema } from "@/lib/validation";
+import { TERMS_VERSION } from "@/lib/consent";
+import { formatShortDateMn } from "@/lib/dates";
 
 export type JobFormState = {
   ok?: boolean;
@@ -13,9 +15,7 @@ export type JobFormState = {
 
 async function currentUser() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { supabase, user: null, profile: null };
   const { data: profile } = await supabase
     .from("profiles")
@@ -40,49 +40,50 @@ export async function createJobAction(
     districtId: formData.get("districtId"),
     addressNote: formData.get("addressNote"),
     workersNeeded: formData.get("workersNeeded"),
-    payOffer: negotiate ? 0 : (formData.get("payOffer") ?? 0),
+    payOffer: negotiate ? null : (formData.get("payOffer") ?? 0),
     description: formData.get("description") ?? "",
-    title: formData.get("title"),
   });
 
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
   const input = parsed.data;
 
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ulaanbaatar",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  if (input.jobDate < today) {
-    return { fieldErrors: { jobDate: "Өнгөрсөн өдөр сонгох боломжгүй" } };
+  const declaration = formData.get("declaration") === "on";
+  const consents = formData.get("consents") === "on";
+  const truth = formData.get("truth") === "on";
+  if (!declaration || !consents || !truth) {
+    return { error: "Бүх баталгаажуулалтыг тэмдэглэнэ үү." };
   }
 
-  const { data, error } = await supabase
-    .from("jobs")
-    .insert({
-      customer_id: user.id,
-      skill_id: input.skillId,
-      title: input.title,
-      description: input.description ?? "",
-      district_id: input.districtId,
-      job_date: input.jobDate,
-      job_slot: input.jobSlot,
-      workers_needed: input.workersNeeded,
-      pay_offer: negotiate ? null : input.payOffer,
-      address_note: input.addressNote,
-      status: "new",
-    })
-    .select("id")
-    .single();
+  const { data: skill } = await supabase
+    .from("skills")
+    .select("name")
+    .eq("id", input.skillId)
+    .maybeSingle();
+  const title = `${skill?.name ?? "Ажил"} — ${formatShortDateMn(input.jobDate)}`.slice(0, 80);
+
+  const { data, error } = await supabase.rpc("create_job", {
+    p_skill: input.skillId,
+    p_title: title,
+    p_description: input.description ?? "",
+    p_district: input.districtId,
+    p_job_date: input.jobDate,
+    p_job_slot: input.jobSlot,
+    p_workers_needed: input.workersNeeded,
+    p_pay_offer: negotiate ? null : input.payOffer,
+    p_address_note: input.addressNote,
+    p_declaration: true,
+    p_version: TERMS_VERSION,
+  });
 
   if (error || !data) {
-    return { error: "Зар илгээх боломжгүй. Дахин оролдоно уу." };
+    if (error?.message?.includes("declaration_required")) {
+      return { error: "Баталгаажуулалтыг тэмдэглэнэ үү." };
+    }
+    return { error: "Захиалга илгээх боломжгүй. Дахин оролдоно уу." };
   }
 
   revalidatePath("/c");
-  revalidatePath("/c/jobs");
-  return { ok: true, jobId: data.id as string };
+  return { ok: true, jobId: String(data) };
 }
 
 export async function cancelJobAction(jobId: string): Promise<{ ok: boolean; error?: string }> {
@@ -98,11 +99,10 @@ export async function cancelJobAction(jobId: string): Promise<{ ok: boolean; err
     .select("id");
 
   if (error || !data || data.length === 0) {
-    return { ok: false, error: "Энэ зарыг цуцлах боломжгүй байна" };
+    return { ok: false, error: "Энэ захиалгыг цуцлах боломжгүй байна" };
   }
 
   revalidatePath("/c");
-  revalidatePath("/c/jobs");
   revalidatePath(`/c/jobs/${jobId}`);
   return { ok: true };
 }

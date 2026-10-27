@@ -5,8 +5,9 @@ loadEnv();
 
 const BASE = resolveAppBase();
 const SITE_HOST = process.env.NEXT_PUBLIC_SITE_HOST || "zav.localhost:3000";
+const WORKER_HOST = process.env.NEXT_PUBLIC_WORKER_HOST || "ajil.zav.localhost:3000";
 const STAFF_HOST = process.env.NEXT_PUBLIC_STAFF_HOST || "admin.zav.localhost:3000";
-const WIDTHS = [360, 390, 768, 1024, 1280, 1440, 1920];
+const WIDTHS = [320, 360, 390, 768, 1024, 1280, 1440, 1920, 2560];
 const SHOTS = "tmp/screens";
 
 /** Guarded so a missing/blocked browser only skips this check, never breaks CI. */
@@ -21,8 +22,27 @@ try {
 const routes = [
   { path: "/", host: SITE_HOST, name: "landing" },
   { path: "/login", host: SITE_HOST, name: "login" },
-  { path: "/register?role=worker", host: SITE_HOST, name: "register-worker" },
+  { path: "/register", host: SITE_HOST, name: "register-customer" },
+  { path: "/forgot-password", host: SITE_HOST, name: "forgot-customer" },
+  { path: "/reset-password", host: SITE_HOST, name: "reset-customer" },
   { path: "/help", host: SITE_HOST, name: "help" },
+  { path: "/terms", host: SITE_HOST, name: "terms" },
+  { path: "/privacy", host: SITE_HOST, name: "privacy" },
+  { path: "/c", host: SITE_HOST, name: "customer-home", auth: true },
+  { path: "/c/new", host: SITE_HOST, name: "customer-new", auth: true },
+  { path: "/c/me", host: SITE_HOST, name: "customer-profile", auth: true },
+  { path: "/", host: WORKER_HOST, name: "worker-landing" },
+  { path: "/login", host: WORKER_HOST, name: "worker-login" },
+  { path: "/register", host: WORKER_HOST, name: "worker-register" },
+  { path: "/forgot-password", host: WORKER_HOST, name: "worker-forgot" },
+  { path: "/reset-password", host: WORKER_HOST, name: "worker-reset" },
+  { path: "/help", host: WORKER_HOST, name: "worker-help" },
+  { path: "/privacy", host: WORKER_HOST, name: "worker-privacy" },
+  { path: "/terms", host: WORKER_HOST, name: "worker-terms" },
+  { path: "/home", host: WORKER_HOST, name: "worker-home", auth: true },
+  { path: "/calendar", host: WORKER_HOST, name: "worker-calendar", auth: true },
+  { path: "/offers", host: WORKER_HOST, name: "worker-offers", auth: true },
+  { path: "/me", host: WORKER_HOST, name: "worker-profile", auth: true },
   { path: "/__kit", host: SITE_HOST, name: "kit" },
   { path: "/__kit/staff", host: SITE_HOST, name: "kit-staff" },
   { path: "/__kit/shell/public", host: SITE_HOST, name: "shell-public" },
@@ -50,12 +70,15 @@ const routes = [
 
 /** *.localhost does not resolve for every tool, so map the two hosts to loopback. */
 const siteName = SITE_HOST.split(":")[0];
+const workerName = WORKER_HOST.split(":")[0];
 const staffName = STAFF_HOST.split(":")[0];
 
 let browser;
 try {
   browser = await chromium.launch({
-    args: [`--host-resolver-rules=MAP ${siteName} 127.0.0.1, MAP ${staffName} 127.0.0.1`],
+    args: [
+      `--host-resolver-rules=MAP ${siteName} 127.0.0.1, MAP ${workerName} 127.0.0.1, MAP ${staffName} 127.0.0.1`,
+    ],
   });
 } catch (error) {
   console.log(`SKIP  check-layout: chromium could not launch (${error.message}).`);
@@ -83,7 +106,11 @@ for (const route of routes) {
   }
 
   for (const width of WIDTHS) {
-    const context = await browser.newContext({ viewport: { width, height: 900 } });
+    const context = await browser.newContext({
+      viewport: { width, height: 900 },
+      isMobile: width <= 768,
+      hasTouch: width <= 768,
+    });
     const page = await context.newPage();
     const errors = [];
     page.on("console", (message) => {
@@ -110,31 +137,102 @@ for (const route of routes) {
       await context.close();
       continue;
     }
-    const report = await page.evaluate(() => {
+    const report = await page.evaluate((checkTargets) => {
       const doc = document.documentElement;
       const overflow = doc.scrollWidth - window.innerWidth;
       const wide = [...document.querySelectorAll("body *")]
-        .filter((element) => element.getBoundingClientRect().width > window.innerWidth + 1)
+        .filter((element) =>
+          element.getBoundingClientRect().width > window.innerWidth + 1 &&
+          !element.matches(".marquee-track"),
+        )
         .slice(0, 5)
         .map(
           (element) =>
             `${element.tagName.toLowerCase()}.${element.className?.toString().slice(0, 40)}`,
         );
-      return { overflow, wide };
-    });
+      const header = document.querySelector(".st-header");
+      const headerBox = header ? header.getBoundingClientRect() : null;
+      const publicHeader = document.querySelector(".site-header, .public-app-topnav");
+      const publicHeaderBox = publicHeader ? publicHeader.getBoundingClientRect() : null;
+      const headerWrapped =
+        (headerBox ? headerBox.height > 68 : false) ||
+        (publicHeaderBox ? publicHeaderBox.height > 68 : false);
+      const tabbar = document.querySelector(".st-tabbar, .public-app-tabbar");
+      const page = document.querySelector(".st-page, .public-app-shell");
+      const tabbarH = tabbar ? tabbar.getBoundingClientRect().height : 0;
+      const pagePad = page ? Number.parseFloat(getComputedStyle(page).paddingBottom) : 0;
+      const headingOverflow = [...document.querySelectorAll("h1, .landing-title, .public-page-title")]
+        .filter((element) => {
+          const box = element.getBoundingClientRect();
+          const children = [...element.children];
+          const contentOverflow = children.length > 0
+            ? children.some((child) => {
+                const childBox = child.getBoundingClientRect();
+                return childBox.left < box.left - 1 || childBox.right > box.right + 1;
+              })
+            : element.scrollWidth > element.clientWidth + 1;
+          return (
+            contentOverflow ||
+            box.left < -1 ||
+            box.right > window.innerWidth + 1
+          );
+        })
+        .map((element) => element.textContent?.trim().slice(0, 40));
+      const smallTargets = checkTargets && matchMedia("(pointer: coarse)").matches
+        ? [...document.querySelectorAll(
+            "button, input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([name='website']), select, textarea, nav a, .ds-button, .public-button, .ds-motion-toggle",
+          )]
+            .filter((element) => {
+              const box = element.getBoundingClientRect();
+              return box.width > 0 && box.height > 0 && (box.width < 44 || box.height < 44);
+            })
+            .map((element) => `${element.tagName.toLowerCase()}.${element.className?.toString().slice(0, 36)}`)
+        : [];
+      return { overflow, wide, headerWrapped, tabbarH, pagePad, headingOverflow, smallTargets };
+    },
+    !route.name.startsWith("staff") &&
+      !route.name.startsWith("kit") &&
+      route.name !== "shell-admin" &&
+      route.name !== "shell-super",
+    );
 
-    const ok = report.overflow <= 1 && report.wide.length === 0;
+    const tabbarOverlap = report.tabbarH > 0 && report.pagePad < report.tabbarH + 8;
+    const ok =
+      report.overflow <= 1 &&
+      report.wide.length === 0 &&
+      !report.headerWrapped &&
+      !tabbarOverlap &&
+      report.headingOverflow.length === 0 &&
+      report.smallTargets.length === 0;
     if (!ok) failures += 1;
     console.log(
       `${ok ? "PASS" : "FAIL"}  ${route.name} @${width}px` +
         (ok
           ? ""
-          : ` — overflow ${report.overflow}px${report.wide.length ? `, wide: ${report.wide.join(" | ")}` : ""}`),
+          : ` — overflow ${report.overflow}px${report.wide.length ? `, wide: ${report.wide.join(" | ")}` : ""}` +
+            (report.headerWrapped ? " — header wrapped" : "") +
+            (tabbarOverlap ? " — content behind the bottom tab bar" : "") +
+            (report.headingOverflow.length ? ` — heading overflow: ${report.headingOverflow.join(" | ")}` : "") +
+            (report.smallTargets.length ? ` — small targets: ${report.smallTargets.join(" | ")}` : "")),
     );
     if (errors.length > 0) {
       console.log(`WARN  ${route.name} @${width}px console: ${errors[0].slice(0, 160)}`);
     }
-    await page.screenshot({ path: `${SHOTS}/${route.name}-${width}.png`, fullPage: true });
+    const keepScreenshot =
+      route.name === "landing" ||
+      route.name === "worker-landing" ||
+      ((width === 320 || width === 1280) &&
+        !route.name.startsWith("staff") &&
+        !route.name.startsWith("kit") &&
+        route.name !== "shell-admin" &&
+        route.name !== "shell-super");
+    if (keepScreenshot) {
+      await page.screenshot({
+        path: `${SHOTS}/${route.name}-${width}.png`,
+        fullPage: false,
+        timeout: 15_000,
+      });
+    }
     await context.close();
   }
 }

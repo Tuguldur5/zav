@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import { Stepper } from "@/components/ui/Stepper";
 
 /**
- * Login / MFA / join: a frame-coloured page with one centred white card
- * (480px), the logo, an optional stepper and no illustration.
+ * Login / MFA / join: a plain white page with one centred 420px card, the logo
+ * mark only and no role wording in the chrome.
  */
 export function StaffAuthFrame({
   title,
@@ -23,21 +23,17 @@ export function StaffAuthFrame({
   footer?: ReactNode;
 }) {
   return (
-    <main className="staff-auth-page" data-staff-auth="">
-      <Link href="/" className="staff-brand press mb-5">
-        <span className="staff-logo" aria-hidden>
-          <Check className="size-5" strokeWidth={3} />
-        </span>
-        <span className="staff-brand-name !inline">Зав</span>
-        <span className="staff-dot" aria-hidden />
-        <span className="staff-role">Ажилтан</span>
-      </Link>
+    <main className="st-auth-page">
+      <div className="mb-5 flex items-center gap-3">
+        <Link href="/" aria-label="Нүүр" className="st-mark">
+          <Check aria-hidden className="size-4" strokeWidth={3} />
+        </Link>
+      </div>
 
-      <div className="staff-auth-card" data-staff-panel="">
-        <div className="mb-4">
-          <p className="staff-role mb-1">Ажилтны хэсэг</p>
-          <h1 className="staff-title">{title}</h1>
-          {subtitle ? <p className="staff-subtitle">{subtitle}</p> : null}
+      <div className="st-auth-card">
+        <div className="st-auth-head">
+          <h1 className="st-auth-title">{title}</h1>
+          {subtitle ? <p className="st-auth-sub">{subtitle}</p> : null}
         </div>
 
         {steps && steps.length > 1 ? (
@@ -50,7 +46,7 @@ export function StaffAuthFrame({
       </div>
 
       {footer ? (
-        <p className="mt-4 max-w-[480px] text-center text-[0.85em] text-[color:var(--frame-text-muted)]">
+        <p className="mt-4 max-w-[420px] text-center text-[13px] text-[color:var(--st-muted)]">
           {footer}
         </p>
       ) : null}

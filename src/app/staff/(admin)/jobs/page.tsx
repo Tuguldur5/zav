@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle, QueueGrid } from "@/components/staff";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { JobCard } from "./JobCard";
-import { ClaimJobButton } from "./ClaimJobButton";
+import { PageHeader, PageTabs, StaffEmpty } from "@/components/staff";
+import { DataTable } from "@/components/ui/DataTable";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { jobStatus, slotLabels } from "@/lib/status";
+import { formatDateMn } from "@/lib/dates";
 import type { Job } from "@/lib/types";
+import { ClaimJobButton } from "./ClaimJobButton";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +40,7 @@ export default async function AdminJobsPage({
 }) {
   const params = await searchParams;
   const tab: TabId = tabs.some((item) => item.id === params.tab) ? (params.tab as TabId) : "new";
-  const { supabase, user } = await requireRole(["admin", "super_admin"]);
+  const { supabase, user } = await requireRole(["admin"]);
 
   const [districtResult, skillResult] = await Promise.all([
     supabase.from("districts").select("id, name"),
@@ -72,46 +74,69 @@ export default async function AdminJobsPage({
 
   return (
     <>
-      <PageTitle
+      <PageHeader
         title="Зарууд"
-        emoji="📋"
         subtitle={tab === "new" ? "Шинэ зарын пул — эхлээд авна уу" : `Нийт ${jobs.length} зар`}
-        search={
-          <nav aria-label="Зарын төлөв" className="staff-seg w-full sm:w-auto">
-            {tabs.map((item) => (
-              <Link
-                key={item.id}
-                href={`/jobs?tab=${item.id}`}
-                aria-current={tab === item.id ? "page" : undefined}
-              >
-                {item.label}
+      />
+
+      <PageTabs
+        label="Зарын төлөв"
+        active={`/jobs?tab=${tab}`}
+        tabs={tabs.map((item) => ({ href: `/jobs?tab=${item.id}`, label: item.label }))}
+      />
+
+      <DataTable
+        caption="Зарууд"
+        columns={[
+          { key: "title", header: "Зар", primary: true },
+          { key: "skill", header: "Мэргэжил", secondary: true },
+          { key: "district", header: "Дүүрэг" },
+          { key: "date", header: "Огноо" },
+          { key: "status", header: "Төлөв" },
+          { key: "action", header: "Үйлдэл", align: "right" },
+        ]}
+        rows={jobs.map((job) => ({
+          id: job.id,
+          href: `/jobs/${job.id}`,
+          cells: [
+            job.title,
+            skillMap.get(job.skill_id) ?? "—",
+            districtMap.get(job.district_id) ?? "—",
+            `${formatDateMn(job.job_date, false)} · ${slotLabels[job.job_slot] ?? ""}`,
+            <StatusPill key="status" status={job.status} table={jobStatus} />,
+            tab === "new" ? (
+              <ClaimJobButton key="claim" jobId={job.id} />
+            ) : (
+              <Link key="open" href={`/jobs/${job.id}`} className="st-btn" data-variant="ghost">
+                Нээх
               </Link>
-            ))}
-          </nav>
+            ),
+          ],
+        }))}
+        empty={
+          <StaffEmpty
+            title="Энд зар байхгүй"
+            body={
+              tab === "new"
+                ? "Шинэ зар ирмэгц энд харагдана."
+                : "Энэ төлөвт зар байхгүй байна."
+            }
+            action={
+              tab === "new" ? (
+                <Link href="/today" className="st-btn" data-variant="outline">
+                  <Inbox aria-hidden className="size-4" />
+                  Өнөөдөр
+                </Link>
+              ) : undefined
+            }
+          />
         }
       />
 
-      {jobs.length === 0 ? (
-        <EmptyState
-          icon={Inbox}
-          title="Энд зар байхгүй"
-          body={tab === "new" ? "Шинэ зар ирмэгц энд харагдана." : "Энэ төлөвт зар байхгүй байна."}
-        />
-      ) : (
-        <QueueGrid>
-          {jobs.map((job, index) => (
-            <JobCard
-              key={job.id}
-              job={job}
-              featured={tab === "new" && index === 0}
-              districtName={districtMap.get(job.district_id)}
-              skillName={skillMap.get(job.skill_id)}
-            >
-              {tab === "new" ? <ClaimJobButton jobId={job.id} /> : null}
-            </JobCard>
-          ))}
-        </QueueGrid>
-      )}
+      <p className="st-note">
+        Дэлгэц дээр хүснэгт, утас дээр карт харагдана. Зар нээхэд дэлгэрэнгүй тусдаа хуудсандаа
+        гарна.
+      </p>
     </>
   );
 }

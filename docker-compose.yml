@@ -7,7 +7,9 @@ services:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_SITE_HOST: ${NEXT_PUBLIC_SITE_HOST:-zav.baina.mn}
+        NEXT_PUBLIC_WORKER_HOST: ${NEXT_PUBLIC_WORKER_HOST:-ajil.zav.baina.mn}
         NEXT_PUBLIC_STAFF_HOST: ${NEXT_PUBLIC_STAFF_HOST:-admin.zav.baina.mn}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
     image: zav-baina:latest
     restart: unless-stopped
     # Loopback only: never expose the app directly.
@@ -18,4 +20,6 @@ services:
       - /etc/zav/env
     environment:
       NEXT_PUBLIC_SITE_HOST: ${NEXT_PUBLIC_SITE_HOST:-zav.baina.mn}
+      NEXT_PUBLIC_WORKER_HOST: ${NEXT_PUBLIC_WORKER_HOST:-ajil.zav.baina.mn}
       NEXT_PUBLIC_STAFF_HOST: ${NEXT_PUBLIC_STAFF_HOST:-admin.zav.baina.mn}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}

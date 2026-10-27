@@ -38,6 +38,11 @@ export function JoinForm({ code }: { code: string }) {
 
   return (
     <form action={formAction} onSubmit={validate} className="flex flex-col gap-4" noValidate>
+      {state.notice ? (
+        <p role="status" className="rounded-md bg-success-container px-3 py-2 text-[0.9em] text-success">
+          {state.notice}
+        </p>
+      ) : null}
       {state.error ? (
         <p role="alert" className="rounded-md bg-error-container px-3 py-2 text-[0.9em] text-error">
           {state.error}

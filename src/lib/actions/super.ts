@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { hasRecentReauth } from "@/lib/auth";
 import { mapRpcError } from "@/lib/auth-errors";
 import type { ActionResult } from "@/lib/action-result";
@@ -25,9 +25,7 @@ async function requireSuper(): Promise<
   { supabase: Awaited<ReturnType<typeof createClient>> } | { error: ActionResult }
 > {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: { ok: false, error: "Нэвтрэх эрхгүй" } };
   return { supabase };
 }

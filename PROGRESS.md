@@ -1,5 +1,180 @@
 # Зав байна — Progress
 
+## SESSION 9 (2026-10-26) — Slots redesign
+
+### D0 — Detect, brief, cleanup
+
+- Initial baseline: `npx tsc --noEmit` PASS; `npm run lint` PASS with two
+  pre-existing unused `eslint-disable` warnings in `src/lib/auth.ts`.
+- Git is available; created the `pre-redesign` tag. The working tree was
+  already extensively modified before this task. Preserve all pre-existing
+  changes and do not reset or restore files.
+- Dev server: use `npm run dev` while editing. `npm start` serves the last
+  production build and may be stale; do not use it for visual verification.
+  `.next` exists, but it has not been established as stale.
+- The installed Next package does not include `node_modules/next/dist/docs/`.
+  Consulted the Next 15 `next/font` guide instead; variable font weights can
+  omit `weight`, and requested subsets are self-hosted at build time.
+- `docs/DESIGN.md` records the Slots system and acceptance criteria.
+- Confirm with owner before publishing answers about payment, no-show handling,
+  and minimum worker age. Do not invent policy.
+- Current phase: D0 is in progress.
+
+Next: D0 step 2 — public-surface cleanup and dev-only design page.
+
+## SESSION 8 (2026-10-25) — auth fix (F1-F3), deploy path, QA truth pass
+
+### STATUS
+
+1. Baseline at detection: `npx tsc --noEmit` PASS, `npm run lint` PASS, `npm run build` PASS (Next 15.5.28, Node 20 on this machine).
+2. F1 root cause: a stale `sb-*-auth-token` cookie makes `auth.getUser()` throw from the middleware and from every page/action; nothing catches it.
+3. Reset is broken on all three hosts: the email link used the PKCE `code` flow on `/auth/callback`, which needs the same browser's code-verifier cookie. `forgot-password` also sent `?next=` inside `redirectTo`.
+4. No `/auth/confirm` route existed anywhere; the staff middleware 404s every `/auth/*` path except `/auth/callback`.
+5. `/reset-password` redirected anonymous visitors to `/login` instead of explaining that the link expired.
+6. Fixed: `readSession()` + `getCurrentUser()`, shared `token_hash` confirm handler on all three hosts, host-derived `redirectTo`, GET link endpoints rate-limited, POST auth 5/min.
+7. Reset is now scoped to the link: `/auth/confirm?type=recovery` sets a 15-minute
+   httpOnly `zav_recovery` cookie, and both `/reset-password` and `resetAction`
+   require it. A session left open on a shared phone can no longer set a new
+   password without the mailed link. `/login?reset=1` confirms the change and
+   `/forgot-password?error=link` explains an expired or reused link.
+8. Deploy path: `Dockerfile` builds and runs on `node:22-alpine` and now passes
+   `NEXT_PUBLIC_WORKER_HOST` and `NEXT_PUBLIC_VAPID_PUBLIC_KEY` as build args
+   (both were missing, so a Docker build shipped `*.localhost` worker links and
+   no push key). Added `engines.node >= 20.18`, `.nvmrc` (22) and
+   `npm run start:standalone`; `output: "standalone"` stays on unless Vercel
+   builds, so local `npm start` still prints Next's standalone warning (harmless,
+   documented in README 7.2).
+9. Landings: both public hosts already had complete landings, which the smoke
+   checks confirm; they were kept as they are. The draft marketing dictionary
+   (`src/lib/i18n/mn.marketing.ts`) and `src/components/marketing/Section.tsx`
+   were never imported and were deleted instead of shipping unused copy. No
+   `check:landing` script was added — `npm run smoke` already asserts the
+   landing H1, the worker cross-link and the registration purpose line.
+10. QA: `npm run check:auth` (new), `npm run smoke` gained an email-link block
+   for all three hosts, `robots.txt`/`sitemap.xml` now pass through the
+   middleware (they were 404ing behind the audience rewrite), and `/privacy`
+   no longer overflows a 360px phone (`grid-cols-1` + a table that fits).
+11. `npm run verify` could NOT run: the stored `DATABASE_URL` password is still
+   rejected (28P01), same block as session 7. Everything that does not need the
+   database was run — see the acceptance table below.
+
+### Auth fix (F1 — diagnosis, evidence from the repo)
+
+| # | Hypothesis | Verdict | Evidence in the code at detection |
+| --- | --- | --- | --- |
+| H1 | `getUser()`/`getSession()` is called without catching the stale-cookie error | **YES** | `src/middleware.ts` line 178 `await supabase.auth.getUser()` with no try/catch; the same call appears in `src/lib/auth.ts` (3x), `auth-callback.ts`, 12 action files. A cookie for a deleted user (verify/cleanup fixtures) throws `AuthApiError: Invalid Refresh Token: Refresh Token Not Found` on every request. |
+| H2 | `resetPasswordForEmail` gets a wrong or hard-coded `redirectTo` | **YES** | `forgotAction` sent ``${currentOrigin()}/auth/callback?next=/reset-password``. `currentOrigin()` trusts the request host (no allow-list) and defaults the scheme to `http`; the query string also collides with the template's own `?token_hash=…`. |
+| H3 | Reset relies on the PKCE `code` flow | **YES** | `/auth/callback` only calls `exchangeCodeForSession(code)`. The verifier lives in a cookie of the browser that requested the reset, so opening the mail in another browser/device (or a different host) always fails. |
+| H4 | forgot/reset/confirm/callback missing or not rewritten per host | **PARTLY** | `/forgot-password`, `/reset-password` and `/auth/callback` exist on all three hosts, but **`/auth/confirm` did not exist anywhere**, and the staff middleware returned 404 for every `/auth/*` path except `/auth/callback`. |
+| H5 | Middleware blocks or hijacks the auth paths | **PARTLY** | The staff host blocked `/auth/*` (H4). `/reset-password` itself redirected anonymous visitors to `/login` (`if (!user) redirect("/login")`), so the expired-link message never appeared. GET `/auth/confirm`/`/auth/callback` had no rate limit (POST login/register/forgot had 5/min). There is no logged-in redirect-away inside the middleware; that lives in the login screens, which `/forgot-password` and `/reset-password` never rendered. |
+| H6 | Build-time host env values differ from `.env.local` | **NO (local)** | `next.config.ts` sets `output: "standalone"` unconditionally, which is what produced the `next start` warning. `.env.local` and the build use the same three `*.localhost:3000` hosts, and `NEXT_PUBLIC_*` values are inlined at build time as documented (no mismatch found). |
+
+### Acceptance (session 8, `next start` on the production build)
+
+| Criterion | Result |
+| --- | --- |
+| `npx tsc --noEmit` / `npm run lint` | PASS |
+| `npm run build` | PASS (Next 15.5.28, Node 20.18 local) |
+| `npm run check:auth` | PASS — 56 checks, all three hosts (static + HTTP) |
+| `npm run smoke` | PASS |
+| `npm run contrast` | PASS — both staff tones, all pairs |
+| `npm run backdrop` | PASS — 10 page/width combos (staff pages need auth) |
+| `npm run layout` | PASS — 7 widths × 3 hosts, no overflow |
+| `npm run verify` | NOT RUN — DB password rejected (28P01) |
+| Anonymous `/reset-password` on every host | 307 → `/forgot-password?error=link` |
+| Tokenless `/auth/confirm` on every host | 307 → `/login?error=link` (never 500) |
+| Expired recovery link | 307 → `/forgot-password?error=link` |
+| Bad `/auth/callback?code=` | 307 → `/login?error=auth` (never 500) |
+| `/robots.txt` | 200 per host (customer `Disallow: /c`, worker/staff `Disallow: /`) |
+| `/sitemap.xml` | 200, host-specific URLs |
+| `/privacy` at 360/390px | PASS — was 176px/146px overflow, now 0 |
+
+Still open (needs the database): `db:apply`, `fixtures:clean`, `verify` (twice),
+and an authenticated pass of `layout`/`backdrop` on the staff pages.
+
+Still open (needs the Supabase dashboard): the email templates must link with
+`{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=…`. Until they do, Supabase's
+default `{{ .ConfirmationURL }}` sends the visitor through `/verify` and the
+session arrives in the URL fragment, which no server route can read — the table
+is in README 7.4.
+
+**Root cause of the reset failure:** the recovery email linked to the PKCE code flow
+(`/auth/callback?code=…`). The code verifier is a cookie in the browser that asked for
+the reset, so any other browser, device or host fails the exchange — and the failure was
+reported as a generic login error. On top of that the `redirectTo` was built from the raw
+request host with a query string, and no `token_hash` handler existed. The fix links to
+`<configured host origin>/auth/confirm`, which verifies `token_hash` with no cookie at all.
+
+## SESSION 7 (2026-10-21) — Staff UI v2: white shell, teal accent, routing fix
+
+### STATUS
+
+1. Baseline: `npx tsc --noEmit` PASS, `npm run lint` PASS, `npm run build` PASS
+   (after the rewrite below). Old chrome removed; new shell wired for both roles.
+2. P0 scripts written: `scripts/staff-audit.mjs`, `scripts/cleanup-fixtures.mjs`,
+   `db/05_admin_loads.sql` (admin_loads + fixture staff-role repair + grant guard).
+   **BLOCKED**: the database is unreachable from this machine — the stored
+   `DATABASE_URL` password is rejected (28P01) and the direct host is IPv6-only
+   which now times out. `db:apply`, `staff:audit`, fixture cleanup and `verify`
+   could not run. Nothing was applied; no secrets printed.
+3. Decisions: `/security` stays outside the shell (it is the MFA gate and must
+   load at aal1); `/profile` and `/notifications` moved to `(shared)` and pick
+   the shell by ROLE. Super opening an admin route is redirected in the admin
+   layout before the shell renders. The shell also sets `data-staff-tone` on its
+   root, so shared pages get the super tone even though middleware only sees the
+   path.
+4. Admin load comes only from `admin_loads()`; bars scale by
+   `settings.admin_capacity` (default 10), never by the largest row.
+5. Links: new `npm run check:links` PASS. Removed the super dashboard link to
+   `/jobs/[id]` (now /super-only) and the super jobs row link (no super detail
+   page). Notification links are still produced by RPCs; they are relative app
+   paths and the bell/notification list only navigates to them.
+6. Deleted: AdminDesk, CommandPalette, Dock, FloatingRail, QueueCard, TabNav,
+   StaffHeader, PageHeader(old), StatTile(old), SegmentedTabs(old), ProfileMenu,
+   jobs/JobCard, lib/staff-desk, and all `--adm-*` tokens/CSS.
+7. Demo seed: `scripts/seed-demo.mjs` (+ Mongolian README section). Cannot be
+   run without the database credentials; it refuses unless `ALLOW_DEMO_SEED=1`.
+8. QA: `npm run contrast` PASS (both tones), `npm run check:links` PASS,
+   `npm run layout` PASS, `npm run backdrop` PASS (8 page/width combos),
+   tsc/lint/build PASS. Authenticated staff pages could not be rendered
+   (no session possible while the DB password is rejected), so layout ran on
+   public + staff login and skipped auth routes.
+9. Next: restore DB credentials, then `npm run db:apply`, `npm run fixtures:clean`,
+   `npm run verify` twice, `npm run layout`, `npm run backdrop`.
+10. Manual test checklist (6 lines): super header, profile menu, bell, each super
+    tab, admin tabs, phone width tab bar — see the end of this section.
+
+### P0 findings (from scripts/staff-audit.mjs — NOT executed, DB blocked)
+
+- The fixture pattern is `verify-<runId>-<code>@example.test` + names "Verify …".
+- The old super/admins page read load from `staff_directory()` while the
+  dashboard read `stats()->admins_load`; two queries, two answers. Root cause of
+  duplicate/non-admin rows: ad-hoc joins to `worker_details` (one row per
+  worker) in the dashboard-side queries. Fixed by `admin_loads()` — a single
+  grouped query (one row per active admin) used by the dashboard, intake, admins
+  and jobs pages.
+- `db/05_admin_loads.sql` also demotes any profile whose auth email matches the
+  fixture pattern but still holds a staff role (idempotent), and adds
+  `profiles_staff_role_guard` so only a super/owner can grant a staff role.
+- `npm run staff:audit` output before/after: **unavailable** (connection error);
+  the script prints masked emails only.
+
+### Link audit (super files → super only; admin files → admin only)
+
+| Source | Target | Role | Verdict |
+| --- | --- | --- | --- |
+| super/page.tsx | /super/intake, /super/admins, /super/jobs?tab=unclaimed | super | ok |
+| super/intake/IntakeClient.tsx | /super/workers?q=… | super | ok |
+| super/jobs/page.tsx | /super | super | ok |
+| admin/today/page.tsx | /jobs, /workers, /calendar, tel: | admin | ok |
+| admin/jobs/page.tsx | /jobs/[id], /today | admin | ok |
+| admin/jobs/[id]/page.tsx | /jobs?tab=mine, /workers/[id] | admin | ok |
+| admin/workers/[id]/page.tsx | /workers, /calendar | admin | ok |
+| components/staff/StaffShell.tsx | role home (/today or /super), /profile, /security, /notifications | both | ok |
+| (removed) super/page.tsx | /jobs/[id] | super | fixed → /super/jobs?tab=unclaimed |
+| (removed) super/jobs/page.tsx | /super/jobs/[id] (did not exist) | super | fixed → no row link |
+
+
 ## SESSION 6 (2026-10-20) — staff redesign: blue "Control Center" shell
 
 ### Staff redesign STATUS (step 0 detection)

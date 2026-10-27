@@ -37,11 +37,11 @@ begin
 
   perform public.push_notification(
     p_worker, 'Танд админ томилогдлоо',
-    v_admin.full_name || ' таны админ боллоо.', '/w'
+    'Дэлгэрэнгүйг нээж харна уу.', '/home'
   );
   perform public.push_notification(
     p_admin, 'Шинэ ажилтан',
-    v_worker.full_name || ' танд хуваарилагдлаа.', '/workers/' || p_worker
+    'Танд шинэ ажилтан хуваарилагдлаа.', '/workers/' || p_worker
   );
   perform public.write_audit(auth.uid(), 'worker.assign', 'worker', p_worker,
     jsonb_build_object('admin', p_admin));

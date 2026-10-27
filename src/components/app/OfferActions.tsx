@@ -3,62 +3,70 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Snackbar } from "@/components/ui/Snackbar";
-import { respondAssignmentAction } from "@/app/site/w/actions";
+import { respondAssignmentAction } from "@/app/worker/(app)/actions";
+import { buttonCls, Note } from "@/components/public/ui";
 
 export function OfferActions({ assignmentId }: { assignmentId: string }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
-  const [hidden, setHidden] = useState(false);
-  const [snack, setSnack] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<"accept" | "decline" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function respond(accept: boolean) {
-    setBusy(accept ? "accept" : "decline");
+    setBusy(true);
     setError(null);
     const result = await respondAssignmentAction(assignmentId, accept);
-    setBusy(null);
+    setBusy(false);
     if (!result.ok) {
       setError(result.error ?? "Алдаа гарлаа");
+      setConfirming(null);
       return;
     }
-    setHidden(true);
-    setSnack(accept ? "Зөвшөөрлөө. Админ баталгаажуулна." : "Татгалзлаа");
+    setDone(accept ? "Зөвшөөрлөө. Админ баталгаажуулна." : "Татгалзлаа.");
     router.refresh();
   }
 
-  if (hidden) {
+  if (done) return <Note tone="ok">{done}</Note>;
+
+  if (confirming) {
     return (
-      <p className="rounded-md bg-container px-3 py-2 text-[0.9em] font-medium text-ink">
-        Хариу илгээгдлээ.
-      </p>
+      <div className="flex flex-col gap-2">
+        <p className="text-[0.9em]">
+          {confirming === "accept"
+            ? "Энэ ажлыг авах уу? Админ баталгаажуулсны дараа хаяг харагдана."
+            : "Энэ саналаас татгалзах уу?"}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => respond(confirming === "accept")}
+            disabled={busy}
+            className={buttonCls(confirming === "accept" ? "primary" : "secondary")}
+          >
+            {busy ? "Түр хүлээнэ үү…" : "Тийм"}
+          </button>
+          <button type="button" onClick={() => setConfirming(null)} className={buttonCls("text")}>
+            Болих
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
       <div className="grid grid-cols-2 gap-2">
-        <Button
-          onClick={() => respond(true)}
-          loading={busy === "accept"}
-          icon={<Check aria-hidden className="size-6" />}
-          className="min-h-16 text-[1.05em]"
-        >
+        <button type="button" onClick={() => setConfirming("accept")} className={buttonCls("primary")}>
+          <Check aria-hidden className="size-4" strokeWidth={2} />
           Зөвшөөрөх
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => respond(false)}
-          loading={busy === "decline"}
-          icon={<X aria-hidden className="size-6" />}
-          className="min-h-16 text-[1.05em]"
-        >
+        </button>
+        <button type="button" onClick={() => setConfirming("decline")} className={buttonCls("secondary")}>
+          <X aria-hidden className="size-4" strokeWidth={2} />
           Татгалзах
-        </Button>
+        </button>
       </div>
       {error ? <p className="text-[0.9em] text-error">{error}</p> : null}
-      <Snackbar open={Boolean(snack)} message={snack ?? ""} onClose={() => setSnack(null)} />
     </div>
   );
 }

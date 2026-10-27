@@ -1,9 +1,9 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { siteUrl } from "@/lib/hosts";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
+import { hostOf, hostOrigin } from "@/lib/hosts";
 import { mapAuthError, mapRpcError } from "@/lib/auth-errors";
 import { fieldErrors, staffJoinSchema } from "@/lib/validation";
 import type { AuthState } from "@/lib/auth-state";
@@ -35,12 +35,17 @@ export async function joinAction(_prev: AuthState, formData: FormData): Promise<
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
   const input = parsed.data;
 
+  // The confirmation link lands on the host that started the signup, as a
+  // token_hash link, so it works in any browser (no verifier cookie needed).
+  const origin = hostOrigin(hostOf(await headers()));
+  if (!origin) return { error: "Энэ хаягаар бүртгүүлэх боломжгүй байна." };
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email: input.email,
     password: input.password,
     options: {
-      emailRedirectTo: siteUrl("/auth/callback"),
+      emailRedirectTo: `${origin}/auth/confirm`,
       data: {
         role: "customer",
         full_name: input.fullName,
@@ -52,7 +57,7 @@ export async function joinAction(_prev: AuthState, formData: FormData): Promise<
 
   if (!data.session) {
     return {
-      error: "И-мэйлээ баталгаажуулсны дараа ажилтны хост дээр нэвтэрч, кодыг дахин ашиглана уу.",
+      notice: "И-мэйлээ баталгаажуулна уу. Холбоосыг дарсны дараа урилгын кодоо оруулна.",
     };
   }
 
@@ -73,9 +78,7 @@ export async function redeemAction(_prev: AuthState, formData: FormData): Promis
   if (!code) return { fieldErrors: { code: "Кодоо оруулна уу" } };
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Эхлээд нэвтэрнэ үү" };
 
   const { error } = await supabase.rpc("redeem_staff_invite", { p_code: code });

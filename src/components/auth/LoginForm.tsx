@@ -10,15 +10,21 @@ import type { AuthState } from "@/lib/auth-state";
 
 type LoginAction = (state: AuthState, formData: FormData) => Promise<AuthState>;
 
+/** Staff-host login. User hosts use UserLoginForm. */
 export function LoginForm({
   action,
   next,
   timeout,
+  authError,
+  reset,
   staff = false,
 }: {
   action: LoginAction;
   next?: string;
   timeout?: boolean;
+  authError?: boolean;
+  /** Arrived here after successfully setting a new password. */
+  reset?: boolean;
   staff?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
@@ -47,9 +53,20 @@ export function LoginForm({
 
   return (
     <form action={formAction} onSubmit={validate} className="flex flex-col gap-4" noValidate>
+      {reset ? (
+        <p className="rounded-md bg-success-container px-3 py-2 text-[0.9em] text-success">
+          Нууц үг солигдлоо. Шинэ нууц үгээрээ нэвтэрнэ үү.
+        </p>
+      ) : null}
       {timeout ? (
         <p className="rounded-md bg-warm px-3 py-2 text-[0.9em] text-warm-ink">
           30 минут идэвхгүй байсан тул гарлаа. Дахин нэвтэрнэ үү.
+        </p>
+      ) : null}
+      {authError ? (
+        <p role="alert" className="rounded-md bg-error-container px-3 py-2 text-[0.9em] text-error">
+          И-мэйл холбоос хүчингүй, хугацаа дууссан эсвэл өөр хостод зориулагдсан байна. Нууц үгээ
+          сэргээх хүсэлтийг дахин гаргана уу.
         </p>
       ) : null}
       {state.error ? (
@@ -106,7 +123,9 @@ export function LoginForm({
 
       <div className="flex flex-col gap-2 text-center text-[0.9em]">
         {staff ? (
-          <span className="text-muted">Нууц үгээ мартсан бол супер админд хандана уу.</span>
+          <Link href="/forgot-password" className="text-primary underline underline-offset-2">
+            Нууц үгээ мартсан уу?
+          </Link>
         ) : (
           <Link href="/forgot-password" className="text-primary underline underline-offset-2">
             Нууц үгээ мартсан уу?
@@ -116,14 +135,7 @@ export function LoginForm({
           <Link href="/join" className="text-primary underline underline-offset-2">
             Кодоор нэгдэх
           </Link>
-        ) : (
-          <span>
-            Бүртгэл байхгүй юу?{" "}
-            <Link href="/register" className="text-primary underline underline-offset-2">
-              Бүртгүүлэх
-            </Link>
-          </span>
-        )}
+        ) : null}
       </div>
     </form>
   );

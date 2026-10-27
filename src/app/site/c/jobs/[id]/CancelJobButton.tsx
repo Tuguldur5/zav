@@ -2,17 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Snackbar } from "@/components/ui/Snackbar";
 import { cancelJobAction } from "@/app/site/c/actions";
+import { buttonCls, Note } from "@/components/public/ui";
 
 export function CancelJobButton({ jobId }: { jobId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [snack, setSnack] = useState(false);
   const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
 
   async function cancel() {
     setBusy(true);
@@ -23,26 +21,33 @@ export function CancelJobButton({ jobId }: { jobId: string }) {
       setOpen(false);
       return;
     }
+    setDone(true);
     setOpen(false);
-    setSnack(true);
     router.refresh();
   }
 
+  if (done) return <Note tone="ok">Захиалга цуцлагдлаа.</Note>;
+
   return (
-    <>
-      <Button variant="outline" full onClick={() => setOpen(true)}>
-        Зарыг цуцлах
-      </Button>
-      {error ? <p className="mt-2 text-[0.9em] text-error">{error}</p> : null}
-      <ConfirmDialog
-        open={open}
-        onCancel={() => setOpen(false)}
-        onConfirm={cancel}
-        loading={busy}
-        message="Зарыг цуцлах уу? Цуцласны дараа буцаах боломжгүй."
-        confirmLabel="Тийм, цуцлах"
-      />
-      <Snackbar open={snack} onClose={() => setSnack(false)} message="Зар цуцлагдлаа" />
-    </>
+    <div className="flex flex-col gap-2">
+      {error ? <Note tone="err">{error}</Note> : null}
+      {open ? (
+        <div className="flex flex-col gap-2 rounded-[8px] border border-divider p-3">
+          <p className="text-[0.9em]">Захиалгыг цуцлах уу? Цуцласны дараа буцаах боломжгүй.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={cancel} disabled={busy} className={buttonCls("primary")}>
+              {busy ? "Түр хүлээнэ үү…" : "Тийм, цуцлах"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className={buttonCls("secondary")}>
+              Болих
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className={buttonCls("secondary")}>
+          Захиалга цуцлах
+        </button>
+      )}
+    </div>
   );
 }

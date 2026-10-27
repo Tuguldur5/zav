@@ -1,106 +1,82 @@
 import {
-  Bell,
   Briefcase,
   CalendarDays,
   ClipboardList,
-  Download,
   LayoutDashboard,
-  ListChecks,
-  NotebookPen,
-  Plus,
-  ScrollText,
-  Search,
   Settings,
   ShieldCheck,
-  Tags,
-  User,
   UserPlus,
   Users,
   type LucideIcon,
 } from "lucide-react";
+import type { StaffNavItem } from "./types";
 
-export type StaffNavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  /** Counts are drawn on Зарууд and Мэдэгдэл only. */
-  badge?: "jobs" | "alerts";
-};
+export type StaffNavEntry = StaffNavItem & { icon: LucideIcon };
 
-export type StaffDockItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  /** Path prefix that marks the item active. */
-  match: string;
-};
-
-export type StaffQuickAction = { label: string; href: string };
-
-/** Admin header tabs (>= 640px; icons only below 1024). */
-export const adminNav: StaffNavItem[] = [
+/** Admin navigation: four destinations, no duplicates. */
+export const adminNav: StaffNavEntry[] = [
   { href: "/today", label: "Өнөөдөр", icon: LayoutDashboard },
   { href: "/jobs", label: "Зарууд", icon: ClipboardList, badge: "jobs" },
   { href: "/workers", label: "Ажилчид", icon: Users },
   { href: "/calendar", label: "Календар", icon: CalendarDays },
-  { href: "/notifications", label: "Мэдэгдэл", icon: Bell, badge: "alerts" },
 ];
 
-/** Super admin header tabs: eight sections, all icons + one expanding label. */
-export const superNav: StaffNavItem[] = [
-  { href: "/super", label: "Хянах самбар", icon: LayoutDashboard },
-  { href: "/super/intake", label: "Шинэ ажилчид", icon: UserPlus },
-  { href: "/super/admins", label: "Админууд", icon: Users },
-  { href: "/super/workers", label: "Ажилчид", icon: User },
-  { href: "/super/jobs", label: "Зарууд", icon: Briefcase, badge: "jobs" },
-  { href: "/super/catalog", label: "Каталог", icon: Tags },
-  { href: "/super/settings", label: "Тохиргоо", icon: Settings },
-  { href: "/super/audit", label: "Аудит", icon: ScrollText },
+/** Super navigation: six destinations; catalog/audit live inside Тохиргоо. */
+export const superNav: StaffNavEntry[] = [
+  { href: "/super", label: "Самбар", icon: LayoutDashboard },
+  { href: "/super/intake", label: "Шинэ ажилчид", icon: UserPlus, badge: "newWorkers" },
+  { href: "/super/admins", label: "Админууд", icon: ShieldCheck },
+  { href: "/super/workers", label: "Ажилчид", icon: Users },
+  { href: "/super/jobs", label: "Зарууд", icon: Briefcase, badge: "staleJobs", attention: true },
+  {
+    href: "/super/settings",
+    label: "Тохиргоо",
+    icon: Settings,
+    match: ["/super/settings", "/super/catalog", "/super/audit"],
+  },
 ];
 
-/** Desktop dock (floating pill at the bottom centre). */
-export const adminDock: StaffDockItem[] = [
-  { href: "/jobs?tab=new", label: "Зар авах", icon: ClipboardList, match: "/jobs" },
-  { href: "/workers", label: "Ажилтан хайх", icon: Search, match: "/workers" },
-  { href: "/calendar", label: "Өнөөдөр чөлөөтэй", icon: CalendarDays, match: "/calendar" },
-  { href: "/workers", label: "Тэмдэглэл", icon: NotebookPen, match: "/workers" },
+export const settingsTabs = [
+  { href: "/super/settings", label: "Ерөнхий" },
+  { href: "/super/catalog", label: "Каталог" },
+  { href: "/super/audit", label: "Аудит" },
 ];
 
-export const superDock: StaffDockItem[] = [
-  { href: "/super/intake", label: "Хуваарилах", icon: UserPlus, match: "/super/intake" },
-  { href: "/super/admins", label: "Админ урих", icon: Users, match: "/super/admins" },
-  { href: "/super/admins", label: "Шилжүүлэх", icon: ShieldCheck, match: "/super/admins" },
-  { href: "/super/audit/export", label: "Аудит CSV", icon: Download, match: "/super/audit" },
-];
+/**
+ * Four primary phone tabs; the fifth opens the "Бусад" sheet. Super keeps
+ * Самбар / Шинэ ажилчид / Админууд / Зарууд visible, everything else in Бусад.
+ */
+export function phoneNav(role: "admin" | "super_admin"): StaffNavEntry[] {
+  if (role !== "super_admin") return adminNav;
+  return superNav.filter((item) =>
+    ["/super", "/super/intake", "/super/admins", "/super/jobs"].includes(item.href),
+  );
+}
 
-/** Phone bottom navigation (< 640px). The last item opens "Бусад". */
-export const adminPhone: StaffDockItem[] = [
-  { href: "/today", label: "Өнөөдөр", icon: LayoutDashboard, match: "/today" },
-  { href: "/jobs", label: "Зарууд", icon: ClipboardList, match: "/jobs" },
-  { href: "/workers", label: "Ажилчид", icon: Users, match: "/workers" },
-  { href: "/calendar", label: "Календар", icon: CalendarDays, match: "/calendar" },
-];
+export function navFor(role: "admin" | "super_admin"): StaffNavEntry[] {
+  return role === "super_admin" ? superNav : adminNav;
+}
 
-export const superPhone: StaffDockItem[] = [
-  { href: "/super", label: "Самбар", icon: LayoutDashboard, match: "/super" },
-  { href: "/super/intake", label: "Шинэ ажилчид", icon: UserPlus, match: "/super/intake" },
-  { href: "/super/admins", label: "Админууд", icon: Users, match: "/super/admins" },
-  { href: "/super/workers", label: "Ажилчид", icon: User, match: "/super/workers" },
-];
+export function activeItem(pathname: string, nav: StaffNavEntry[]): StaffNavEntry | null {
+  let best: StaffNavEntry | null = null;
+  let bestLength = -1;
+  for (const item of nav) {
+    const prefixes = [item.href, ...(item.match ?? [])];
+    for (const prefix of prefixes) {
+      const exact = pathname === prefix;
+      const nested = pathname.startsWith(`${prefix}/`);
+      if ((exact || nested) && prefix.length > bestLength) {
+        best = item;
+        bestLength = prefix.length;
+      }
+    }
+  }
+  return best;
+}
 
-/** Menu behind the dock "+" (real destinations only). */
-export const adminPlus: StaffQuickAction[] = [
-  { label: "Мэдэгдэл харах", href: "/notifications" },
-  { label: "Миний профайл", href: "/profile" },
-  { label: "Аюулгүй байдал", href: "/security" },
-];
+export function badgeValue(item: StaffNavEntry, counts: StaffCountsSource): number {
+  if (!item.badge) return 0;
+  return counts[item.badge] ?? 0;
+}
 
-export const superPlus: StaffQuickAction[] = [
-  { label: "Админ урих", href: "/super/admins" },
-  { label: "Каталог", href: "/super/catalog" },
-  { label: "Аудитын бүртгэл", href: "/super/audit" },
-  { label: "Миний профайл", href: "/profile" },
-];
-
-export const plusIcon = Plus;
-export const auditIcon = ListChecks;
+type StaffCountsSource = { jobs: number; newWorkers: number; staleJobs: number };

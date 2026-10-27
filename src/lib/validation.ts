@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { passwordProblem } from "@/lib/auth/common-passwords";
 
 export const phoneSchema = z
   .string()
@@ -6,7 +7,12 @@ export const phoneSchema = z
   .transform((value) => value.replace(/[\s-]/g, ""))
   .refine((value) => /^\d{8}$/.test(value), "8 оронтой утасны дугаар оруулна уу");
 
-export const emailSchema = z.string().trim().toLowerCase().email("И-мэйл хаяг буруу байна");
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254, "И-мэйл хаяг хэт урт байна")
+  .email("И-мэйл хаяг буруу байна");
 
 export const passwordSchema = z
   .string()
@@ -15,7 +21,7 @@ export const passwordSchema = z
 
 export const loginSchema = z.object({
   email: emailSchema,
-  password: z.string().min(1, "Нууц үгээ оруулна уу"),
+  password: z.string().min(1, "Нууц үгээ оруулна уу").max(72, "Нууц үг хэт урт байна"),
 });
 
 export const registerSchema = z
@@ -29,6 +35,8 @@ export const registerSchema = z
     skills: z.array(z.string().uuid()).optional(),
     experienceNote: z.string().trim().max(500).optional(),
     consent: z.boolean(),
+    declaration: z.boolean(),
+    phoneCheck: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
     if (!value.consent) {
@@ -38,7 +46,24 @@ export const registerSchema = z
         message: "Үйлчилгээний нөхцөлийг зөвшөөрнө үү",
       });
     }
+    if (!value.declaration) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["declaration"],
+        message:
+          value.role === "worker"
+            ? "Та ажил хийх хүн мөн гэдгээ баталгаажуулна уу"
+            : "Та ажил хийлгэх хүн мөн гэдгээ баталгаажуулна уу",
+      });
+    }
     if (value.role === "worker") {
+      if (!value.phoneCheck) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["phoneCheck"],
+          message: "Утсаар шалгахыг зөвшөөрнө үү",
+        });
+      }
       if (!value.skills || value.skills.length === 0) {
         ctx.addIssue({
           code: "custom",
@@ -49,6 +74,11 @@ export const registerSchema = z
       if (!value.districtId) {
         ctx.addIssue({ code: "custom", path: ["districtId"], message: "Дүүргээ сонгоно уу" });
       }
+    }
+    // Common / email-equal / phone-equal passwords are refused server-side.
+    const problem = passwordProblem(value.password, value.email, value.phone);
+    if (problem) {
+      ctx.addIssue({ code: "custom", path: ["password"], message: problem });
     }
   });
 
@@ -81,7 +111,8 @@ export const jobSchema = z.object({
   workersNeeded: z.coerce.number().int().min(1).max(10),
   payOffer: z.coerce.number().int().min(0).max(10_000_000).nullable(),
   description: z.string().trim().max(500).optional(),
-  title: z.string().trim().min(2, "Ажлын нэрээ оруулна уу").max(80),
+  /** The server builds the title from the skill and the date. */
+  title: z.string().trim().max(80).optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

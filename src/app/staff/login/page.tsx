@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function StaffLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; timeout?: string }>;
+  searchParams: Promise<{ next?: string; timeout?: string; error?: string; reset?: string }>;
 }) {
   const params = await searchParams;
   const { user, profile } = await getViewer();
@@ -24,7 +24,7 @@ export default async function StaffLoginPage({
   return (
     <StaffAuthFrame
       title="Ажилтны нэвтрэх"
-      subtitle="Зөвхөн Зав байна-гийн админ болон супер админ."
+      subtitle="Ажилтны бүртгэлээр нэвтэрнэ үү."
       steps={["Нэвтрэх", "Хамгаалалт"]}
       currentStep={0}
       footer="Хандах эрхгүй бол тусламжийн утсаар холбогдоно уу."
@@ -33,6 +33,8 @@ export default async function StaffLoginPage({
         action={staffLoginAction}
         next={params.next}
         timeout={params.timeout === "1"}
+        authError={params.error === "auth" || params.error === "host"}
+        reset={params.reset === "1"}
         staff
       />
     </StaffAuthFrame>

@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Briefcase, Inbox } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle, QueueGrid } from "@/components/staff";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { JobCard } from "@/app/staff/(admin)/jobs/JobCard";
+import { PageHeader, PageTabs, StaffEmpty } from "@/components/staff";
+import { DataTable } from "@/components/ui/DataTable";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { jobStatus, slotLabels } from "@/lib/status";
+import { formatDateMn } from "@/lib/dates";
 import type { Job } from "@/lib/types";
 import { JobControls } from "./JobControls";
 
@@ -25,21 +26,14 @@ export default async function SuperJobsPage({
   const tab: TabId = tabs.some((item) => item.id === params.tab) ? (params.tab as TabId) : "active";
   const { supabase } = await requireRole(["super_admin"]);
 
-  const [directoryResult, districtResult, skillResult] = await Promise.all([
-    supabase.rpc("staff_directory"),
+  const [loadsResult, districtResult, skillResult] = await Promise.all([
+    supabase.rpc("admin_loads"),
     supabase.from("districts").select("id, name"),
     supabase.from("skills").select("id, name"),
   ]);
   const admins = (
-    (directoryResult.data as Array<{
-      id: string;
-      full_name: string;
-      role: string;
-      status: string;
-    }> | null) ?? []
-  )
-    .filter((row) => row.role === "admin" && row.status === "active")
-    .map((row) => ({ id: row.id, full_name: row.full_name }));
+    (loadsResult.data as Array<{ id: string; full_name: string }> | null) ?? []
+  ).map((row) => ({ id: row.id, full_name: row.full_name }));
   const districtMap = new Map(
     ((districtResult.data as Array<{ id: string; name: string }> | null) ?? []).map((row) => [
       row.id,
@@ -61,46 +55,50 @@ export default async function SuperJobsPage({
 
   return (
     <>
-      <PageTitle
-        title="Бүх зарууд"
-        emoji="📋"
+      <PageHeader
+        title="Зарууд"
         subtitle={tab === "active" ? `Идэвхтэй ${jobs.length} зар` : `Авагдаагүй ${jobs.length} зар`}
-        search={
-          <nav aria-label="Зарын төрөл" className="staff-seg w-full sm:w-auto">
-            {tabs.map((item) => (
-              <Link
-                key={item.id}
-                href={`/super/jobs?tab=${item.id}`}
-                aria-current={tab === item.id ? "page" : undefined}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        }
       />
 
-      {jobs.length === 0 ? (
-        <EmptyState
-          icon={tab === "active" ? Briefcase : Inbox}
-          title={tab === "active" ? "Идэвхтэй зар байхгүй" : "Авагдаагүй зар байхгүй"}
-          body="Энэ төрөлд одоогоор зар байхгүй."
-        />
-      ) : (
-        <QueueGrid>
-          {jobs.map((job, index) => (
-            <JobCard
-              key={job.id}
-              job={job}
-              featured={tab === "unclaimed" && index === 0}
-              districtName={districtMap.get(job.district_id)}
-              skillName={skillMap.get(job.skill_id)}
-            >
-              <JobControls jobId={job.id} admins={admins} status={job.status} />
-            </JobCard>
-          ))}
-        </QueueGrid>
-      )}
+      <PageTabs
+        label="Зарын төрөл"
+        active={`/super/jobs?tab=${tab}`}
+        tabs={tabs.map((item) => ({ href: `/super/jobs?tab=${item.id}`, label: item.label }))}
+      />
+
+      <DataTable
+        caption="Зарууд"
+        columns={[
+          { key: "title", header: "Зар", primary: true },
+          { key: "district", header: "Дүүрэг" },
+          { key: "skill", header: "Мэргэжил", secondary: true },
+          { key: "date", header: "Огноо" },
+          { key: "status", header: "Төлөв" },
+          { key: "admin", header: "Админ" },
+        ]}
+        rows={jobs.map((job) => ({
+          id: job.id,
+          cells: [
+            job.title,
+            districtMap.get(job.district_id) ?? "—",
+            skillMap.get(job.skill_id) ?? "—",
+            `${formatDateMn(job.job_date, false)} · ${slotLabels[job.job_slot] ?? ""}`,
+            <StatusPill key="status" status={job.status} table={jobStatus} />,
+            <JobControls key="controls" jobId={job.id} admins={admins} status={job.status} />,
+          ],
+        }))}
+        empty={
+          <StaffEmpty
+            title={tab === "active" ? "Идэвхтэй зар байхгүй" : "Авагдаагүй зар байхгүй"}
+            body="Энэ төрөлд одоогоор зар байхгүй."
+            action={
+              <Link href="/super" className="st-btn" data-variant="outline">
+                Самбар
+              </Link>
+            }
+          />
+        }
+      />
     </>
   );
 }

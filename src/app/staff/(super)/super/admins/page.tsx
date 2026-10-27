@@ -1,11 +1,18 @@
 import { Mail, ShieldCheck, UserCog, Users } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle, PanelSection, StatRow, StatTile } from "@/components/staff";
-import { Card } from "@/components/ui/Card";
-import { Chip } from "@/components/ui/Chip";
+import {
+  LoadBar,
+  PageHeader,
+  Row,
+  Rows,
+  Section,
+  StatTile,
+  StatTiles,
+} from "@/components/staff";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { ReauthAction } from "@/components/app/ReauthAction";
 import { setStaffStatusAction } from "@/lib/actions/super";
+import { getAdminCapacity } from "@/lib/settings";
 import { formatDateTimeMn } from "@/lib/dates";
 import { profileStatus } from "@/lib/status";
 import type { District, Skill } from "@/lib/types";
@@ -27,20 +34,29 @@ type StaffRow = {
   load: number;
 };
 
+type AdminLoad = { id: string; full_name: string; worker_count: number; last_login: string | null };
+
 export default async function SuperAdminsPage() {
   const { supabase, profile } = await requireRole(["super_admin"]);
 
-  const [directoryResult, skillsResult, districtsResult, scopesResult] = await Promise.all([
-    supabase.rpc("staff_directory"),
-    supabase.from("skills").select("*").order("sort_order"),
-    supabase.from("districts").select("*").order("name"),
-    supabase.from("admin_scopes").select("*"),
-  ]);
+  const [directoryResult, loadsResult, skillsResult, districtsResult, scopesResult, capacity] =
+    await Promise.all([
+      supabase.rpc("staff_directory"),
+      supabase.rpc("admin_loads"),
+      supabase.from("skills").select("*").order("sort_order"),
+      supabase.from("districts").select("*").order("name"),
+      supabase.from("admin_scopes").select("*"),
+      getAdminCapacity(),
+    ]);
 
   const staff = (directoryResult.data as StaffRow[] | null) ?? [];
-  const admins = staff
-    .filter((row) => row.role === "admin" && row.status === "active")
-    .map((row) => ({ id: row.id, full_name: row.full_name, load: row.load }));
+  const loads = (loadsResult.data as AdminLoad[] | null) ?? [];
+  const loadById = new Map(loads.map((row) => [row.id, row.worker_count]));
+  const admins = loads.map((row) => ({
+    id: row.id,
+    full_name: row.full_name,
+    load: row.worker_count,
+  }));
   const skills = (skillsResult.data as Skill[] | null) ?? [];
   const districts = (districtsResult.data as District[] | null) ?? [];
   const scopes =
@@ -58,118 +74,101 @@ export default async function SuperAdminsPage() {
     };
   };
 
-  const activeAdmins = admins.length;
-  const totalLoad = admins.reduce((sum, row) => sum + row.load, 0);
+  const totalLoad = loads.reduce((sum, row) => sum + row.worker_count, 0);
 
   return (
     <>
-      <PageTitle
+      <PageHeader
         title="Админууд"
-        emoji="🛡️"
-        subtitle={`Нийт ${staff.length} ажилтан, идэвхтэй ${activeAdmins} админ`}
+        subtitle={`Идэвхтэй ${loads.length} админ · нийт ${staff.length} ажилтан`}
       />
 
-      <StatRow>
-        <StatTile featured label="Ажилтнууд" value={staff.length} icon={ShieldCheck} />
-        <StatTile label="Идэвхтэй админ" value={activeAdmins} icon={UserCog} />
+      <StatTiles>
+        <StatTile label="Ажилтнууд" value={staff.length} icon={ShieldCheck} />
+        <StatTile label="Идэвхтэй админ" value={loads.length} icon={UserCog} />
         <StatTile label="Нийт ачаалал" value={totalLoad} icon={Users} />
         <StatTile
-          attention={staff.length - activeAdmins > 0}
           label="Түр хаагдсан / хүлээгдэж буй"
-          value={staff.length - activeAdmins}
-          href="/super/intake"
+          value={staff.length - loads.length}
+          attention={staff.length - loads.length > 0}
           icon={Mail}
         />
-      </StatRow>
+      </StatTiles>
 
       <InviteSection />
       <TransferWorkers admins={admins} />
 
-      <PanelSection title="Бүх ажилтнууд" count={staff.length} href="/super" hrefLabel="Самбар">
+      <Section title="Бүх ажилтнууд" count={staff.length}>
         {staff.length === 0 ? (
-          <Card className="text-[0.9em] text-muted">
-            Ажилтан байхгүй. Дээрээс урилгын код үүсгэнэ үү.
-          </Card>
+          <p className="st-note">Ажилтан байхгүй. Урилгын код үүсгэнэ үү.</p>
         ) : (
-          <ul className="flex flex-col gap-3">
-              {staff.map((row) => {
-                const isSelf = row.id === profile.id;
-                const own = scopesFor(row.id);
-                return (
-                  <li key={row.id}>
-                    <Card className="flex flex-col gap-3">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[1.05em] font-semibold">{row.full_name || "Нэргүй"}</p>
-                          <p className="flex items-center gap-1 break-all text-[0.9em] text-muted">
-                            <Mail aria-hidden className="size-4" />
-                            {row.email}
-                          </p>
-                          <p className="text-[0.9em] text-muted">{row.phone ?? "Утасгүй"}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <Chip tone={row.role === "super_admin" ? "warm" : "primary"}>
-                            {row.role === "super_admin" ? "Супер админ" : "Админ"}
-                          </Chip>
-                          <StatusPill status={row.status} table={profileStatus} />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-[0.9em] sm:grid-cols-3">
-                        <p className="text-muted">
-                          Ачаалал:{" "}
-                          <span className="font-semibold text-ink">{row.load} ажилтан</span>
-                        </p>
-                        <p className="text-muted">
-                          Эхэлсэн:{" "}
-                          <span className="text-ink">{formatDateTimeMn(row.created_at)}</span>
-                        </p>
-                        <p className="text-muted">
-                          Сүүлд нэвтэрсэн:{" "}
-                          <span className="text-ink">
-                            {row.last_sign_in_at
-                              ? formatDateTimeMn(row.last_sign_in_at)
-                              : "хэзээ ч"}
-                          </span>
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <ScopesEditor
-                          adminId={row.id}
-                          skills={skills.map((skill) => ({ id: skill.id, name: skill.name }))}
-                          districts={districts.map((district) => ({
-                            id: district.id,
-                            name: district.name,
-                          }))}
-                          initialSkillIds={own.skillIds}
-                          initialDistrictIds={own.districtIds}
-                        />
-                        {isSelf ? (
-                          <span className="flex min-h-11 items-center rounded-md bg-container px-3 text-[0.9em] text-muted">
-                            Өөрийн эрхийг өөрчлөх боломжгүй
-                          </span>
-                        ) : (
-                          <ReauthAction
-                            label={row.status === "active" ? "Эрхийг түр хаах" : "Эрхийг сэргээх"}
-                            variant={row.status === "active" ? "outline" : "filled"}
-                            icon={<UserCog aria-hidden className="size-5" />}
-                            action={() =>
-                              setStaffStatusAction(
-                                row.id,
-                                row.status === "active" ? "suspended" : "active",
-                              )
-                            }
-                          />
-                        )}
-                      </div>
-                    </Card>
-                  </li>
-                );
-              })}
-            </ul>
+          <Rows label="Ажилтнууд">
+            {staff.map((row) => {
+              const isSelf = row.id === profile.id;
+              const own = scopesFor(row.id);
+              const load = loadById.get(row.id) ?? row.load;
+              return (
+                <Row
+                  key={row.id}
+                  title={row.full_name || "Нэргүй"}
+                  pill={<StatusPill status={row.status} table={profileStatus} />}
+                  meta={
+                    <>
+                      <span className="inline-flex items-center gap-1">
+                        <Mail aria-hidden className="size-3.5" />
+                        {row.email ?? "—"}
+                      </span>
+                      <span>{row.phone ?? "Утасгүй"}</span>
+                      <span>{row.role === "super_admin" ? "Супер админ" : "Админ"}</span>
+                      <span>Сүүлд: {row.last_sign_in_at ? formatDateTimeMn(row.last_sign_in_at) : "хэзээ ч"}</span>
+                    </>
+                  }
+                >
+                  {row.role === "admin" ? (
+                    <span className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-[13px] text-[color:var(--st-muted)]">
+                        {load} ажилтан
+                      </span>
+                      <span className="w-40">
+                        <LoadBar value={load} capacity={capacity} />
+                      </span>
+                    </span>
+                  ) : null}
+                  <span className="mt-2 flex flex-wrap gap-2">
+                    <ScopesEditor
+                      adminId={row.id}
+                      skills={skills.map((skill) => ({ id: skill.id, name: skill.name }))}
+                      districts={districts.map((district) => ({
+                        id: district.id,
+                        name: district.name,
+                      }))}
+                      initialSkillIds={own.skillIds}
+                      initialDistrictIds={own.districtIds}
+                    />
+                    {isSelf ? (
+                      <span className="flex min-h-10 items-center text-[13px] text-[color:var(--st-muted)]">
+                        Өөрийн эрхийг өөрчлөх боломжгүй
+                      </span>
+                    ) : (
+                      <ReauthAction
+                        label={row.status === "active" ? "Эрхийг түр хаах" : "Эрхийг сэргээх"}
+                        variant={row.status === "active" ? "outline" : "filled"}
+                        icon={<UserCog aria-hidden className="size-4" />}
+                        action={() =>
+                          setStaffStatusAction(
+                            row.id,
+                            row.status === "active" ? "suspended" : "active",
+                          )
+                        }
+                      />
+                    )}
+                  </span>
+                </Row>
+              );
+            })}
+          </Rows>
         )}
-      </PanelSection>
+      </Section>
     </>
   );
 }

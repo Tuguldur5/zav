@@ -21,8 +21,9 @@ export async function staffLoginAction(_prev: AuthState, formData: FormData): Pr
 
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Нэвтрэх эрхгүй" };
+  if (userError || !user) return { error: "Нэвтрэх эрхгүй" };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -49,6 +50,6 @@ export async function staffLoginAction(_prev: AuthState, formData: FormData): Pr
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (aal?.currentLevel !== "aal2") redirect("/security");
 
-  const next = safeNextPath(String(formData.get("next") ?? ""), profile.role, true);
+  const next = safeNextPath(String(formData.get("next") ?? ""), profile.role);
   redirect(next ?? roleHome(profile.role));
 }

@@ -1,8 +1,10 @@
 "use client";
 
-import { AlertTriangle, Briefcase, CalendarCheck, MailQuestion, Search, Users } from "lucide-react";
+import { CalendarCheck, Users } from "lucide-react";
 import { AppShell } from "@/components/ui/AppShell";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Chip } from "@/components/ui/Chip";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageContainer, PageHeader, Section } from "@/components/ui/Layout";
 import {
@@ -11,174 +13,46 @@ import {
   WorkerBottomNav,
   WorkerSidebar,
 } from "@/components/app/navs";
-import {
-  PageTitle as StaffPageHeader,
-  PanelSection,
-  QueueCard,
-  QueueGrid,
-  RoundAction,
-  StaffShell,
-  StatRow,
-  StatTile,
-} from "@/components/staff";
-import type { StaffDeskData } from "@/components/staff";
-import { jobStatus } from "@/lib/status";
-import { Card } from "@/components/ui/Card";
-import { Chip } from "@/components/ui/Chip";
+import { Row, Rows, StaffShell, StatTile, StatTiles } from "@/components/staff";
 
 export type ShellVariant = "public" | "customer" | "worker" | "admin" | "super";
 
-/** Dev-only sample content: the /__kit pages are the one place it is allowed. */
-function sampleDesk(superAdmin: boolean): StaffDeskData {
-  return {
-    title: superAdmin ? "Супер админы самбар" : "Админы самбар",
-    summary: "Жишээ мэдээлэл — зөвхөн хөгжүүлэлтийн үед",
-    tabs: [
-      {
-        id: "today",
-        label: "Өнөөдөр",
-        empty: "Энэ таб хоосон байна.",
-        items: [
-          {
-            id: "d1",
-            kind: "Зар",
-            date: "2026 оны 10-р сарын 19",
-            text: "Цэвэрлэгээ — Сүхбаатар дүүрэг",
-            time: "Өдөржин",
-            actions: [{ label: "Зарыг нээх", href: "/__kit/shell/admin" }],
-          },
-          {
-            id: "d2",
-            kind: "Чөлөөтэй",
-            date: "2026 оны 10-р сарын 19",
-            text: "Болормаа С.",
-            time: "Өглөө",
-            actions: [{ label: "Холбоо харах", href: "/__kit/shell/admin" }],
-          },
-        ],
-      },
-      {
-        id: "pending",
-        label: "Баталгаажуулах",
-        empty: "Баталгаажуулах зүйл алга.",
-        items: [
-          {
-            id: "d3",
-            kind: "Чөлөөт өдөр",
-            date: "2026 оны 10-р сарын 20",
-            text: "Нэргүй А.",
-            time: "Үдээс хойш",
-            actions: [{ label: "Холбоо харах", href: "/__kit/shell/admin" }],
-          },
-        ],
-      },
-      {
-        id: "history",
-        label: "Түүх",
-        empty: "Сүүлийн үйлдэл байхгүй.",
-        items: [
-          {
-            id: "d4",
-            kind: "Аудит",
-            date: "2026-10-19",
-            text: "claim_job · jobs",
-            time: "Саяхан",
-            actions: [{ label: "Аудитыг нээх", href: "/__kit/shell/admin" }],
-          },
-        ],
-      },
-    ],
-  };
-}
-
-function samplePage(superAdmin: boolean) {
+function SampleStaffPage({ superAdmin }: { superAdmin: boolean }) {
   return (
     <>
-      <StaffPageHeader
+      <PageHeader
         title={superAdmin ? "Самбар" : "Өнөөдөр"}
-        subtitle="Жишээ хуудас — зөвхөн хөгжүүлэлтийн үед харагдана."
-        search={
-          <label className="staff-search w-full sm:w-64">
-            <Search aria-hidden className="size-4 shrink-0" />
-            <span className="sr-only">Хайх</span>
-            <input placeholder="Хайх" readOnly />
-          </label>
-        }
-        actions={<Button>Шинэ үйлдэл</Button>}
+        description="Жишээ хуудас — зөвхөн хөгжүүлэлтийн үед харагдана."
+        actions={<Button>Жишээ үйлдэл</Button>}
       />
 
-      <StatRow>
-        <StatTile featured label="Шинэ зар" value={12} href="/__kit/shell/admin" icon={Briefcase} />
-        <StatTile
-          label="Баталгаажуулах чөлөөт өдөр"
-          value={4}
-          href="/__kit/shell/admin"
-          icon={CalendarCheck}
-        />
-        <StatTile
-          label="Хариу хүлээж буй санал"
-          value={7}
-          href="/__kit/shell/admin"
-          icon={MailQuestion}
-        />
-        <StatTile
-          attention
-          label="24 цагаас дээш авагдаагүй зар"
-          value={3}
-          href="/__kit/shell/admin"
-          icon={AlertTriangle}
-        />
-      </StatRow>
+      <StatTiles>
+        <StatTile label="Шинэ зар" value={12} icon={Users} />
+        <StatTile label="Баталгаажуулах" value={4} icon={CalendarCheck} />
+        <StatTile label="Хариу хүлээж буй" value={7} icon={CalendarCheck} />
+        <StatTile label="Анхаарах" value={3} icon={CalendarCheck} attention />
+      </StatTiles>
 
-      <PanelSection title="Жишээ картууд" count={3} href="/__kit/shell/admin">
-        <QueueGrid>
-          <QueueCard
-            featured
-            title="Цэвэрлэгээ хийх ажилтан"
-            href="/__kit/shell/admin"
-            description="Сүхбаатар дүүрэг, өдөржин, тохиролцоно"
-            icon={Briefcase}
-            meta={<span>2026 оны 10-р сарын 19 · 2 ажилтан</span>}
-            status={{ status: "new", table: jobStatus }}
-            actions={
-              <>
-                <RoundAction href="/__kit/shell/admin" label="Нээх" icon={Users} />
-                <RoundAction href="/__kit/shell/admin" label="Баталгаажуулах" icon={Users} confirm />
-              </>
+      <Section title="Жишээ мөрүүд">
+        <Rows label="Жишээ">
+          <Row
+            title="Цэвэрлэгээ — Сүхбаатар"
+            meta={<span>2026-10-19 · 2 ажилтан</span>}
+            action={
+              <button type="button" className="st-btn" data-variant="outline">
+                Нээх
+              </button>
             }
           />
-          <QueueCard
-            title="Ачаа тээвэр"
-            href="/__kit/shell/admin"
-            description="Хан-Уул дүүрэг, өглөө"
-            icon={Users}
-            meta={<span>2026 оны 10-р сарын 20 · 1 ажилтан</span>}
-            status={{ status: "matched", table: jobStatus }}
-            actions={<RoundAction href="/__kit/shell/admin" label="Нээх" icon={Users} />}
-          >
-            <div className="flex flex-wrap gap-1.5">
-              <Chip tone="primary">Жишиг чиглэл</Chip>
-            </div>
-          </QueueCard>
-          <QueueCard
-            title="Бага ажил"
-            href="/__kit/shell/admin"
-            description="Баянзүрх дүүрэг, үдээс хойш"
-            icon={CalendarCheck}
-            meta={<span>2026 оны 10-р сарын 21 · 3 ажилтан</span>}
-            status={{ status: "done", table: jobStatus }}
-            actions={<RoundAction href="/__kit/shell/admin" label="Нээх" icon={Users} />}
-          />
-        </QueueGrid>
-      </PanelSection>
+          <Row title="Ачаа тээвэр — Хан-Уул" meta={<span>2026-10-20 · 1 ажилтан</span>} />
+        </Rows>
+      </Section>
 
-      <PanelSection title="Хоосон төлөв">
-        <EmptyState
-          icon={Users}
-          title="Жишээ хоосон төлөв"
-          body="Энэ карт зөвхөн хөгжүүлэлтийн үед харагдана."
-        />
-      </PanelSection>
+      <EmptyState
+        icon={Users}
+        title="Жишээ хоосон төлөв"
+        body="Энэ карт зөвхөн хөгжүүлэлтийн үед харагдана."
+      />
     </>
   );
 }
@@ -238,17 +112,9 @@ export function ShellPreview({ kind }: { kind: ShellVariant }) {
     <StaffShell
       tone={superAdmin ? "super" : "admin"}
       role={superAdmin ? "super_admin" : "admin"}
-      activeHref={superAdmin ? "/super" : "/today"}
       name="Жишээ Админ"
       email="admin@zav.test"
-      lastSignIn="2026-10-19 09:15"
-      counts={{ jobs: 4, alerts: 3 }}
-      desk={sampleDesk(superAdmin)}
-      palette={[
-        { label: superAdmin ? "Хянах самбар" : "Өнөөдөр", href: superAdmin ? "/super" : "/today", kind: "Хуудас" },
-        { label: "Жишээ зар", href: "/jobs", kind: "Зар" },
-        { label: "Жишээ ажилтан", href: "/workers", kind: "Ажилтан" },
-      ]}
+      counts={{ jobs: 4, newWorkers: 2, staleJobs: 1, alerts: 3 }}
       notices={[
         {
           id: "sample-1",
@@ -259,7 +125,7 @@ export function ShellPreview({ kind }: { kind: ShellVariant }) {
         },
       ]}
     >
-      {samplePage(superAdmin)}
+      <SampleStaffPage superAdmin={superAdmin} />
     </StaffShell>
   );
 }

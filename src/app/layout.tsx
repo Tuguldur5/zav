@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Inter } from "next/font/google";
+import { Onest } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-inter",
+const onest = Onest({
+  subsets: ["latin", "cyrillic", "cyrillic-ext"],
+  variable: "--font-onest",
   display: "swap",
 });
 
@@ -16,7 +15,6 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0369A1",
   width: "device-width",
   initialScale: 1,
 };
@@ -35,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       data-audience={staff ? "staff" : "public"}
       data-tone={staff ? tone : undefined}
       data-staff-tone={staff ? tone : undefined}
-      className={staff ? `${inter.variable} staff-theme` : inter.variable}
+      className={staff ? `${onest.variable} staff-theme` : onest.variable}
     >
       <body>{children}</body>
     </html>

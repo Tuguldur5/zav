@@ -1,13 +1,20 @@
-import { AuthShell } from "@/components/auth/AuthShell";
-import { ForgotForm } from "./ForgotForm";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { ForgotForm } from "@/components/auth/ForgotForm";
 
-export default function ForgotPasswordPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ForgotPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
   return (
-    <AuthShell
+    <AuthLayout
       title="Нууц үг сэргээх"
-      subtitle="Бүртгэлтэй и-мэйлээ оруулахад сэргээх холбоос илгээнэ."
+      lead="Бүртгэлдээ ашигласан и-мэйлээ оруулна уу. Сэргээх холбоос илгээнэ."
     >
-      <ForgotForm />
-    </AuthShell>
+      <ForgotForm linkError={params.error === "link"} />
+    </AuthLayout>
   );
 }

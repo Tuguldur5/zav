@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Download, FileText } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle, SectionHeader } from "@/components/staff";
+import { PageHeader, PageTabs, settingsTabs } from "@/components/staff";
 import { DataTable } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatDateTimeMn } from "@/lib/dates";
@@ -59,15 +59,11 @@ export default async function SuperAuditPage({
 
   return (
     <>
-      <PageTitle
-        title="Аудитын бүртгэл"
-        emoji="📜"
-        subtitle={`Сүүлийн ${rows.length} мөр${params.entity ? ` · ${params.entity}` : ""}`}
+      <PageHeader
+        title="Тохиргоо"
+        subtitle={`Аудит · сүүлийн ${rows.length} мөр${params.entity ? ` · ${params.entity}` : ""}`}
         actions={
-          <Link
-            href={exportHref(params)}
-            className="press flex min-h-[var(--control-h)] items-center gap-1 rounded-[10px] border border-[color:var(--control-line)] px-4 text-[0.9em] font-medium"
-          >
+          <Link href={exportHref(params)} className="st-btn" data-variant="outline">
             <Download aria-hidden className="size-4" />
             CSV татаж авах
           </Link>
@@ -136,7 +132,7 @@ export default async function SuperAuditPage({
           </div>
         </form>
 
-        <SectionHeader title="Мөрүүд" count={rows.length} href="/super" hrefLabel="Самбар" />
+        <PageTabs label="Тохиргооны хэсэг" active="/super/audit" tabs={settingsTabs} />
 
         <DataTable
           caption="Аудитын мөрүүд"

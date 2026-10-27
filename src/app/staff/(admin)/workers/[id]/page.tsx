@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarDays, CalendarCheck, ClipboardList, Phone, UserCog } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
-import { PageTitle } from "@/components/staff";
+import { PageHeader } from "@/components/staff";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminWorkerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase } = await requireRole(["admin", "super_admin"]);
+  const { supabase } = await requireRole(["admin"]);
 
   const { data: profileData } = await supabase
     .from("profiles")
@@ -37,6 +37,7 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
     skillsResult,
     noteResult,
     districtResult,
+    pushResult,
   ] = await Promise.all([
     supabase.from("worker_details").select("*").eq("worker_id", id).maybeSingle(),
     supabase.from("availability").select("*").eq("worker_id", id).order("day").limit(90),
@@ -53,7 +54,9 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
       .select("name")
       .eq("id", worker.district_id ?? "")
       .maybeSingle(),
+    supabase.rpc("worker_push_status", { p_worker_id: id }),
   ]);
+  const pushEnabled = Boolean(pushResult.data);
 
   const details = detailsResult.data as
     | {
@@ -115,7 +118,7 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
 
   return (
     <>
-      <PageTitle
+      <PageHeader
         title={worker.full_name}
         subtitle={`${district ?? "Дүүрэг тодорхойгүй"} · ${assignmentRows.length} ажлын түүх`}
         actions={
@@ -130,7 +133,7 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
       <div className="flex flex-col gap-4 pb-40 sm:pb-4">
         <Card className="flex flex-col gap-3">
           <div className="flex items-start gap-3">
-            <span className="staff-avatar shrink-0" aria-hidden>
+            <span className="st-avatar shrink-0" aria-hidden>
               {initials}
             </span>
             <div className="min-w-0 flex-1">
@@ -147,7 +150,15 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
               <Chip key={skillId}>{skillMap.get(skillId) ?? "Мэргэжил"}</Chip>
             ))}
             {details?.has_transport ? <Chip tone="primary">Тээврийн хэрэгсэлтэй</Chip> : null}
+            <Chip tone={pushEnabled ? "primary" : "default"}>
+              Мэдэгдэл: {pushEnabled ? "идэвхтэй" : "идэвхгүй"}
+            </Chip>
           </div>
+          {pushEnabled ? null : (
+            <p className="text-[0.85em] text-muted">
+              Мэдэгдэл идэвхгүй тул санал ирэхэд утсаар холбогдоно уу.
+            </p>
+          )}
           {worker.phone ? (
             <PhoneActions phone={worker.phone} />
           ) : (
@@ -235,7 +246,7 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
           )}
         </Card>
 
-        <div className="staff-banner">
+        <div className="st-note">
           <UserCog aria-hidden className="size-4 shrink-0" />
           Зөвхөн таны ажилтан харагдана.
           <Link href="/calendar" className="press font-semibold text-primary">

@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 
 # --- build ---------------------------------------------------------------
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -14,16 +14,20 @@ COPY . .
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_SITE_HOST
+ARG NEXT_PUBLIC_WORKER_HOST
 ARG NEXT_PUBLIC_STAFF_HOST
+ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_SITE_HOST=$NEXT_PUBLIC_SITE_HOST \
+    NEXT_PUBLIC_WORKER_HOST=$NEXT_PUBLIC_WORKER_HOST \
     NEXT_PUBLIC_STAFF_HOST=$NEXT_PUBLIC_STAFF_HOST \
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY \
     NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # --- runtime -------------------------------------------------------------
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

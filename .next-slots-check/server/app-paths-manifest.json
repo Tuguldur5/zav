@@ -1,0 +1,5 @@
+{
+  "/site/forgot-password/page": "app/site/forgot-password/page.js",
+  "/site/reset-password/page": "app/site/reset-password/page.js",
+  "/site/help/page": "app/site/help/page.js"
+}

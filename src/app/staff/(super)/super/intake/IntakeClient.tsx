@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, UserPlus, Users } from "lucide-react";
+import { Check, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { BulkBar, QueueCard, RoundAction } from "@/components/staff";
+import { BulkBar } from "@/components/staff";
 import { ReauthDialog, type ReauthResult } from "@/components/ui/ReauthDialog";
 import { Snackbar } from "@/components/ui/Snackbar";
 import { inputClass } from "@/components/ui/styles";
@@ -35,13 +36,18 @@ export function IntakeClient({ rows, admins }: { rows: IntakeWorker[]; admins: A
   const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [snack, setSnack] = useState<{ message: string; tone: "success" | "error" } | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   function notify(result: ActionResult, successText: string) {
     setSnack({
       message: result.ok ? successText : (result.error ?? "Алдаа гарлаа"),
       tone: result.ok ? "success" : "error",
     });
+  }
+
+  function toggle(id: string) {
+    setSelected((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    );
   }
 
   async function bulkAssign(): Promise<ActionResult> {
@@ -65,8 +71,7 @@ export function IntakeClient({ rows, admins }: { rows: IntakeWorker[]; admins: A
     const reauth = await reauthenticate(password);
     if (!reauth.ok) return reauth;
     setReauthOpen(false);
-    const result = await bulkAssign();
-    if (!result.ok && !result.needsReauth) setError(result.error ?? null);
+    await bulkAssign();
     return { ok: true };
   }
 
@@ -81,110 +86,69 @@ export function IntakeClient({ rows, admins }: { rows: IntakeWorker[]; admins: A
   const adminName = (id: string) => admins.find((admin) => admin.id === id)?.full_name ?? "";
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button
           variant="outline"
-          onClick={() =>
-            setSelected(selected.length === rows.length ? [] : rows.map((row) => row.id))
-          }
+          onClick={() => setSelected(selected.length === rows.length ? [] : rows.map((row) => row.id))}
         >
           {selected.length === rows.length ? "Болих" : `Бүгдийг сонгох (${rows.length})`}
         </Button>
-        <span className="text-[13px] text-muted">
-          Карт бүр дээр тэмдэглээд доод самбараас админд хуваарилна.
+        <span className="text-[13px] text-[color:var(--st-muted)]">
+          Мөр бүр дээр тэмдэглээд доод самбараас админд хуваарилна.
         </span>
-        {error ? <p className="text-[13px] text-error">{error}</p> : null}
       </div>
 
-      <ul className="staff-card-grid">
-        {rows.map((worker, index) => {
-          const defaultAdmin = worker.suggestedAdminId ?? bulkAdminId;
+      <div className="st-rows">
+        {rows.map((worker) => {
           const checked = selected.includes(worker.id);
           return (
-            <QueueCard
-              key={worker.id}
-              featured={index === 0}
-              title={worker.name}
-              href={`/workers/${worker.id}`}
-              description={`${worker.phone ?? "Утасгүй"} · ${worker.districtName}`}
-              icon={UserPlus}
-              meta={
-                <>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      aria-label={`${worker.name} сонгох`}
-                      checked={checked}
-                      onChange={() =>
-                        setSelected((current) =>
-                          current.includes(worker.id)
-                            ? current.filter((value) => value !== worker.id)
-                            : [...current, worker.id],
-                        )
-                      }
-                      className="size-5"
-                    />
-                    <span>{checked ? "Сонгосон" : "Сонгох"}</span>
-                  </label>
+            <div key={worker.id} className="st-row">
+              <input
+                type="checkbox"
+                aria-label={`${worker.name} сонгох`}
+                checked={checked}
+                onChange={() => toggle(worker.id)}
+                className="size-5 accent-[var(--st-accent)]"
+              />
+              <div className="st-row-main">
+                <span className="st-row-title">
+                  <Link href={`/super/workers?q=${encodeURIComponent(worker.name)}`}>{worker.name}</Link>
+                </span>
+                <span className="st-row-meta">
+                  <span>{worker.phone ?? "Утасгүй"}</span>
+                  <span>{worker.districtName}</span>
                   <span>
                     {worker.suggestedAdminName
                       ? `Санал: ${worker.suggestedAdminName}`
                       : "Админ саналгүй"}
                   </span>
-                </>
-              }
-              actions={
-                <RoundAction href={`/workers/${worker.id}`} label="Холбоо харах" icon={Users} />
-              }
-            >
-              <div className="flex flex-wrap gap-1.5">
-                {worker.skillNames.map((name) => (
-                  <Chip key={name} tone="primary">
-                    {name}
-                  </Chip>
-                ))}
+                </span>
+                <span className="mt-1 flex flex-wrap gap-1.5">
+                  {worker.skillNames.map((name) => (
+                    <Chip key={name} tone="primary">
+                      {name}
+                    </Chip>
+                  ))}
+                </span>
               </div>
-
-              <div className="flex flex-wrap items-end gap-2">
-                <label className="flex min-w-40 flex-1 flex-col gap-1 text-[0.9em]">
-                  Админ
-                  <select
-                    value={defaultAdmin}
-                    onChange={() => undefined}
-                    className={inputClass}
-                    disabled
-                  >
-                    <option>{worker.suggestedAdminName ?? "Саналгүй"}</option>
-                  </select>
-                </label>
+              <div className="st-row-action">
                 <Button
+                  size="sm"
                   loading={rowBusy === worker.id}
                   disabled={!worker.suggestedAdminId}
-                  onClick={() =>
-                    worker.suggestedAdminId && assignOne(worker.id, worker.suggestedAdminId)
-                  }
-                  icon={<Check aria-hidden className="size-5" />}
+                  onClick={() => worker.suggestedAdminId && assignOne(worker.id, worker.suggestedAdminId)}
+                  icon={<Check aria-hidden className="size-4" />}
                 >
                   {worker.suggestedAdminId
-                    ? `${worker.suggestedAdminName}-д хуваарилагдах`
+                    ? `${worker.suggestedAdminName}-д өгөх`
                     : "Админ байхгүй"}
                 </Button>
               </div>
-              {worker.suggestedAdminId ? (
-                <p className="text-[0.8em] text-muted">
-                  Санал: {worker.suggestedAdminName} (хамгийн бага ачаалалтай) — өөрөөр сонгож
-                  болно.
-                </p>
-              ) : (
-                <p className="text-[0.8em] text-muted">
-                  Идэвхтэй админ байхгүй тул эхлээд админ урилга үүсгэнэ үү.
-                </p>
-              )}
-            </QueueCard>
+            </div>
           );
         })}
-      </ul>
+      </div>
 
       <BulkBar count={selected.length} onClear={() => setSelected([])}>
         <label className="sr-only" htmlFor="bulk-admin">
@@ -194,7 +158,7 @@ export function IntakeClient({ rows, admins }: { rows: IntakeWorker[]; admins: A
           id="bulk-admin"
           value={bulkAdminId}
           onChange={(event) => setBulkAdminId(event.target.value)}
-          className={`${inputClass} !min-h-9 w-auto max-w-[180px] !rounded-full text-[13px]`}
+          className={`${inputClass} !min-h-9 w-auto max-w-[200px]`}
         >
           <option value="" disabled>
             Админ сонгох
@@ -224,17 +188,13 @@ export function IntakeClient({ rows, admins }: { rows: IntakeWorker[]; admins: A
         message={`Сонгосон ${selected.length} ажилтныг "${adminName(bulkAdminId)}" админд хуваарилагдах уу?`}
         confirmLabel="Тийм, хуваариалах"
       />
-      <ReauthDialog
-        open={reauthOpen}
-        onClose={() => setReauthOpen(false)}
-        onSubmit={reauthSubmit}
-      />
+      <ReauthDialog open={reauthOpen} onClose={() => setReauthOpen(false)} onSubmit={reauthSubmit} />
       <Snackbar
         open={Boolean(snack)}
         message={snack?.message ?? ""}
         tone={snack?.tone ?? "success"}
         onClose={() => setSnack(null)}
       />
-    </div>
+    </>
   );
 }

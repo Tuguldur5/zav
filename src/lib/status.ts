@@ -32,6 +32,16 @@ export const jobStatus: Record<string, StatusMeta> = {
   cancelled: { label: "Цуцлагдсан", tone: "error", icon: X },
 };
 
+/** Plain customer language for the same job statuses. */
+export const orderStatus: Record<string, StatusMeta> = {
+  new: { label: "Хүлээн авсан", tone: "primary", icon: CircleDashed },
+  claimed: { label: "Админ авсан", tone: "primary", icon: Briefcase },
+  matched: { label: "Ажилтан олдлоо", tone: "warm", icon: Clock },
+  confirmed: { label: "Баталгаажсан", tone: "success", icon: CalendarCheck },
+  done: { label: "Дууссан", tone: "success", icon: CheckCheck },
+  cancelled: { label: "Цуцлагдсан", tone: "error", icon: X },
+};
+
 export const assignmentStatus: Record<string, StatusMeta> = {
   offered: { label: "Хариу хүлээж байна", tone: "warm", icon: Clock },
   accepted: { label: "Зөвшөөрсөн", tone: "primary", icon: ThumbsUp },

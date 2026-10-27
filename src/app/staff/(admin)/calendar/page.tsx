@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/auth";
-import { PageTitle, StatRow, StatTile } from "@/components/staff";
+import { PageHeader, StatTile, StatTiles } from "@/components/staff";
 import { AdminCalendar } from "@/components/app/AdminCalendar";
 import { CalendarCheck, CalendarDays } from "lucide-react";
 import type { DayMark } from "@/components/ui/Calendar";
@@ -8,7 +8,7 @@ import type { Availability, Profile } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function AdminCalendarPage() {
-  const { supabase, user, profile } = await requireRole(["admin", "super_admin"]);
+  const { supabase, user, profile } = await requireRole(["admin"]);
   const superAdmin = profile.role === "super_admin";
 
   let detailsQuery = supabase.from("worker_details").select("worker_id");
@@ -46,14 +46,13 @@ export default async function AdminCalendarPage() {
 
   return (
     <>
-      <PageTitle
-        title="Долоо хоногийн календар"
-        emoji="📅"
+      <PageHeader
+        title="Календар"
         subtitle="Квадрат дээр дарж ажилтны өдрийг тэмдэглэнэ уу. Мэдэгдэл шууд ажилтны календарт орно."
       />
 
-      <StatRow>
-        <StatTile featured label="Ажилтан" value={workerRows.length} icon={CalendarDays} />
+      <StatTiles>
+        <StatTile label="Ажилтан" value={workerRows.length} icon={CalendarDays} />
         <StatTile label="Баталгаажсан өдөр" value={confirmedDays} icon={CalendarCheck} />
         <StatTile label="Ажилтай өдөр" value={bookedDays} icon={CalendarDays} />
         <StatTile
@@ -63,7 +62,7 @@ export default async function AdminCalendarPage() {
           href="/today"
           icon={CalendarCheck}
         />
-      </StatRow>
+      </StatTiles>
 
       <AdminCalendar workers={workerRows} />
     </>

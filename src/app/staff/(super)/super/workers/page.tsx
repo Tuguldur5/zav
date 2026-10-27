@@ -1,9 +1,7 @@
-import Link from "next/link";
-import { Users } from "lucide-react";
+import { Search, Users } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle, SectionHeader } from "@/components/staff";
+import { PageHeader, StaffEmpty } from "@/components/staff";
 import { DataTable } from "@/components/ui/DataTable";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { profileStatus } from "@/lib/status";
 import type { Profile } from "@/lib/types";
@@ -17,12 +15,18 @@ type Row = {
   districtName: string;
 };
 
-export default async function SuperWorkersPage() {
+export default async function SuperWorkersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const params = await searchParams;
+  const q = (params.q ?? "").trim().toLowerCase();
   const { supabase } = await requireRole(["super_admin"]);
 
-  const [detailsResult, directoryResult, districtsResult] = await Promise.all([
+  const [detailsResult, loadsResult, districtsResult] = await Promise.all([
     supabase.from("worker_details").select("*"),
-    supabase.rpc("staff_directory"),
+    supabase.rpc("admin_loads"),
     supabase.from("districts").select("*"),
   ]);
 
@@ -32,9 +36,9 @@ export default async function SuperWorkersPage() {
       admin_id: string | null;
       intake_status: string;
     }> | null) ?? [];
-  const directory = (directoryResult.data as Array<{ id: string; full_name: string }> | null) ?? [];
+  const loads = (loadsResult.data as Array<{ id: string; full_name: string }> | null) ?? [];
   const districts = (districtsResult.data as Array<{ id: string; name: string }> | null) ?? [];
-  const adminName = new Map(directory.map((row) => [row.id, row.full_name]));
+  const adminName = new Map(loads.map((row) => [row.id, row.full_name]));
   const districtName = new Map(districts.map((row) => [row.id, row.name]));
   const ids = details.map((row) => row.worker_id);
 
@@ -45,7 +49,7 @@ export default async function SuperWorkersPage() {
   }
   const profileMap = new Map(profiles.map((row) => [row.id, row]));
 
-  const rows: Row[] = details
+  const allRows: Row[] = details
     .map((detail) => {
       const profile = profileMap.get(detail.worker_id);
       if (!profile) return null;
@@ -59,26 +63,41 @@ export default async function SuperWorkersPage() {
     .filter((row): row is Row => row !== null)
     .sort((a, b) => a.profile.full_name.localeCompare(b.profile.full_name, "mn"));
 
-  const unassigned = rows.filter((row) => row.intakeStatus !== "assigned").length;
-  const suspended = rows.filter((row) => row.profile.status !== "active").length;
+  const rows = q
+    ? allRows.filter(
+        (row) =>
+          row.profile.full_name.toLowerCase().includes(q) ||
+          row.districtName.toLowerCase().includes(q),
+      )
+    : allRows;
+  const unassigned = allRows.filter((row) => row.intakeStatus !== "assigned").length;
+  const inactive = allRows.filter((row) => row.profile.status !== "active").length;
 
   return (
     <>
-      <PageTitle
-        title="Бүх ажилчид"
-        emoji="👥"
-        subtitle={`Нийт ${rows.length} · хуваариалаагүй ${unassigned} · идэвхгүй ${suspended}`}
-        search={
-          <Link
-            href="/super/intake"
-            className="press flex min-h-[var(--control-h)] items-center rounded-[10px] bg-primary px-4 text-[0.9em] font-medium text-on-primary"
-          >
-            Шинэ ажилчид
-          </Link>
+      <PageHeader
+        title="Ажилчид"
+        subtitle={`Нийт ${allRows.length} · хуваарилаагүй ${unassigned} · идэвхгүй ${inactive}`}
+        actions={
+          <form method="GET" className="st-note w-full sm:w-72">
+            <Search aria-hidden className="size-4 shrink-0" />
+            <label htmlFor="q" className="sr-only">
+              Ажилтан хайх
+            </label>
+            <input
+              id="q"
+              name="q"
+              defaultValue={params.q ?? ""}
+              placeholder="Нэр эсвэл дүүрэг"
+              className="min-w-0 flex-1 bg-transparent outline-none"
+              autoComplete="off"
+            />
+            <button type="submit" className="press shrink-0 text-[13px] font-semibold">
+              Хайх
+            </button>
+          </form>
         }
       />
-
-      <SectionHeader title="Жагсаалт" count={rows.length} href="/super" hrefLabel="Самбар" />
 
       <DataTable
         caption="Ажилчид"
@@ -103,13 +122,17 @@ export default async function SuperWorkersPage() {
           ],
         }))}
         empty={
-          <EmptyState
-            icon={Users}
-            title="Ажилтан байхгүй"
-            body="Шинэ ажилтан бүртгүүлмэгц энд харагдана."
+          <StaffEmpty
+            title={q ? "Тохирох ажилтан олдсонгүй" : "Ажилтан байхгүй"}
+            body={q ? "Өөр нэрээр хайна уу." : "Шинэ ажилтан бүртгүүлмэгц энд харагдана."}
           />
         }
       />
+
+      <p className="st-note">
+        <Users aria-hidden className="size-4 shrink-0" />
+        Ажилтны дэлгэрэнгүй хуудас нь тухайн ажилтныг хариуцаж буй админд нээгдэнэ.
+      </p>
     </>
   );
 }

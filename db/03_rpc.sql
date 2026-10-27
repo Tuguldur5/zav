@@ -183,7 +183,7 @@ begin
 
   perform public.push_notification(
     p_worker, 'Чөлөөт өдөр баталгаажлаа',
-    'Таны өдөр админаар баталгаажлаа.', '/w/calendar'
+    'Таны өдөр админаар баталгаажлаа.', '/calendar'
   );
   perform public.write_audit(auth.uid(), 'availability.confirm', 'availability', v_av.id,
     jsonb_build_object('worker', p_worker, 'day', p_day, 'by_phone', p_by_phone));
@@ -370,9 +370,9 @@ begin
   update jobs set status = 'matched' where id = p_job and status = 'claimed';
 
   perform public.push_notification(
-    p_worker, 'Шинэ ажлын санал',
-    v_job.title || ' — ' || to_char(p_day, 'YYYY-MM-DD') || '. Хариу өгнө үү.',
-    '/w/offers'
+    p_worker, 'Шинэ ажлын санал ирлээ',
+    v_job.title || '. Дарж харна уу.',
+    '/offers'
   );
   perform public.write_audit(auth.uid(), 'assignment.offer', 'assignment', v_assignment,
     jsonb_build_object('job', p_job, 'worker', p_worker, 'day', p_day));
@@ -422,7 +422,7 @@ begin
     perform public.push_notification(
       v_job.claimed_by,
       case when p_accept then 'Ажилтан зөвшөөрлөө' else 'Ажилтан татгалзлаа' end,
-      coalesce(v_worker_name, 'Ажилтан') || ' — ' || v_job.title,
+      'Ажилтан — ' || v_job.title,
       '/jobs/' || v_job.id
     );
   end if;
@@ -472,7 +472,7 @@ begin
     v_assignment.worker_id,
     'Утсаар хариу бүртгэгдлээ',
     v_job.title || ' — ' || case when p_accept then 'зөвшөөрсөн' else 'татгалзсан' end,
-    '/w/offers'
+    '/offers'
   );
   perform public.write_audit(auth.uid(), 'assignment.phone_answer', 'assignment', p_assignment,
     jsonb_build_object('accept', p_accept));
@@ -525,11 +525,11 @@ begin
 
   perform public.push_notification(
     v_assignment.worker_id, 'Ажил баталгаажлаа',
-    v_job.title || '. Хаяг: ' || v_job.address_note, '/w'
+    v_job.title || '. Дэлгэрэнгүйг нээж харна уу.', '/home'
   );
   perform public.push_notification(
     v_job.customer_id, 'Ажилтан баталгаажлаа',
-    split_part(coalesce(v_worker_name, 'Ажилтан'), ' ', 1) || ' таны ажилд томилогдлоо.',
+    'Ажилтан таны ажилд томилогдлоо.',
     '/c/jobs/' || v_job.id
   );
   perform public.write_audit(auth.uid(), 'assignment.confirm', 'assignment', p_assignment,
@@ -620,7 +620,7 @@ begin
 
   perform public.push_notification(
     v_assignment.worker_id, 'Ажил цуцлагдлаа',
-    v_job.title || ' ажил цуцлагдлаа.', '/w'
+    v_job.title || ' ажил цуцлагдлаа.', '/home'
   );
   perform public.write_audit(auth.uid(), 'assignment.cancel', 'assignment', p_assignment,
     jsonb_build_object('job', v_job.id));

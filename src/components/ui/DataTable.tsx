@@ -78,7 +78,7 @@ export function DataTable({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="hover:bg-tint-1">
+              <tr key={row.id} data-row="" className="hover:bg-tint-1">
                 {selectName ? (
                   <td className="border-b border-divider px-3 py-2 align-middle">
                     <input
@@ -119,7 +119,11 @@ export function DataTable({
 
       <ul className="flex flex-col gap-3 lg:hidden" data-staff-cards="">
         {rows.map((row) => (
-          <li key={row.id} className="rounded-lg border border-divider bg-surface p-4">
+          <li
+            key={row.id}
+            data-row=""
+            className="rounded-lg border border-divider bg-surface p-4"
+          >
             {selectName ? (
               <label className="mb-2 flex items-center gap-2 text-[0.85em] font-medium">
                 <input

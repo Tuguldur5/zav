@@ -31,7 +31,9 @@ let cleaned = false;
 let crashed = false;
 const APP_URL = process.env.APP_URL ? resolveAppBase() : "";
 const SITE_HOST = process.env.NEXT_PUBLIC_SITE_HOST || "zav.localhost:3000";
+const WORKER_HOST = process.env.NEXT_PUBLIC_WORKER_HOST || "ajil.zav.localhost:3000";
 const STAFF_HOST = process.env.NEXT_PUBLIC_STAFF_HOST || "admin.zav.localhost:3000";
+const TERMS_VERSION = "2026-10";
 
 async function cleanup() {
   if (cleaned) return;
@@ -158,6 +160,56 @@ async function httpChecks(sessions) {
   }
   check("HTTP: worker session gets 404 on every staff path", workerOk);
 
+  let customerWorkerHostOk = true;
+  for (const path of ["/home", "/offers", "/calendar", "/c"]) {
+    const result = await httpStatus(path, WORKER_HOST, customer);
+    if (result.status !== 404) {
+      customerWorkerHostOk = false;
+      check(`HTTP: customer 404 on worker ${path}`, false, String(result.status));
+    }
+  }
+  check("HTTP: customer session gets 404 on every worker path", customerWorkerHostOk);
+
+  const workerRoot = await httpStatus("/", WORKER_HOST);
+  check(
+    "HTTP: worker host root is a public landing page",
+    workerRoot.status === 200,
+    String(workerRoot.status),
+  );
+
+  const workerSiteRoot = await httpStatus("/", SITE_HOST);
+  check(
+    "HTTP: customer host root is a public landing page",
+    workerSiteRoot.status === 200,
+    String(workerSiteRoot.status),
+  );
+
+  const workerHome = await httpStatus("/home", WORKER_HOST, worker);
+  check("HTTP: worker reaches /home on the worker host", workerHome.status === 200, String(workerHome.status));
+
+  let customerOnWorkerPathsOk = true;
+  for (const path of ["/c", "/c/new", "/c/jobs"]) {
+    const result = await httpStatus(path, WORKER_HOST, worker);
+    if (result.status !== 404) {
+      customerOnWorkerPathsOk = false;
+      check(`HTTP: /c path 404s on the worker host (${path})`, false, String(result.status));
+    }
+  }
+  check("HTTP: no ordering screen exists on the worker host", customerOnWorkerPathsOk);
+
+  let workerOnSitePathsOk = true;
+  for (const path of ["/home", "/offers", "/calendar"]) {
+    const result = await httpStatus(path, SITE_HOST, worker);
+    if (result.status !== 404) {
+      workerOnSitePathsOk = false;
+      check(`HTTP: worker route 404s on the customer host (${path})`, false, String(result.status));
+    }
+  }
+  check("HTTP: customer host serves no worker routes", workerOnSitePathsOk);
+
+  const customerHome = await httpStatus("/c", SITE_HOST, customer);
+  check("HTTP: customer reaches /c on the customer host", customerHome.status === 200, String(customerHome.status));
+
   const adminOnSuper = await httpStatus("/super", STAFF_HOST, adminAal2);
   check("HTTP: admin gets 404 on /super", adminOnSuper.status === 404, String(adminOnSuper.status));
 
@@ -174,12 +226,36 @@ async function httpChecks(sessions) {
   const superSuper = await httpStatus("/super", STAFF_HOST, superAdmin);
   check("HTTP: super admin reaches /super", superSuper.status === 200, String(superSuper.status));
 
-  const secondAdminSuper = await httpStatus("/super", STAFF_HOST, adminOther);
-  check(
-    "HTTP: second admin gets 404 on /super",
-    secondAdminSuper.status === 404,
-    String(secondAdminSuper.status),
-  );
+  const superPaths = [
+    "/super",
+    "/super/intake",
+    "/super/admins",
+    "/super/workers",
+    "/super/jobs",
+    "/super/settings",
+    "/super/catalog",
+    "/super/audit",
+  ];
+  let adminSuperOk = true;
+  for (const path of superPaths) {
+    const result = await httpStatus(path, STAFF_HOST, adminOther);
+    if (result.status !== 404) {
+      adminSuperOk = false;
+      check(`HTTP: admin 404 on ${path}`, false, String(result.status));
+    }
+  }
+  check("HTTP: admin gets 404 on every /super route", adminSuperOk);
+
+  let superRedirectOk = true;
+  for (const path of ["/today", "/jobs", "/workers", "/calendar"]) {
+    const result = await httpStatus(path, STAFF_HOST, superAdmin);
+    const redirected = result.status >= 300 && result.status < 400 && result.location.endsWith("/super");
+    if (!redirected) {
+      superRedirectOk = false;
+      check(`HTTP: super redirect ${path} -> /super`, false, `${result.status} ${result.location}`);
+    }
+  }
+  check("HTTP: super admin never renders an admin route", superRedirectOk);
 
   const staffHome = await httpStatus("/", STAFF_HOST, customer);
   check(
@@ -189,19 +265,49 @@ async function httpChecks(sessions) {
   );
 }
 
-async function insertJob(token, job) {
-  const result = await rest("/rest/v1/jobs?select=*", {
+/** The only customer path to a job: the SECURITY DEFINER RPC with a declaration. */
+async function createJob(token, job) {
+  const result = await rest("/rest/v1/rpc/create_job", {
     method: "POST",
     token,
-    body: job,
-    headers: { Prefer: "return=representation" },
+    body: {
+      p_skill: job.skill_id,
+      p_title: job.title,
+      p_description: job.description ?? "",
+      p_district: job.district_id,
+      p_job_date: job.job_date,
+      p_job_slot: job.job_slot,
+      p_workers_needed: job.workers_needed,
+      p_pay_offer: job.pay_offer,
+      p_address_note: job.address_note,
+      p_declaration: job.declaration ?? true,
+      p_version: TERMS_VERSION,
+    },
   });
-  if (!result.ok) throw new Error(`job insert failed: ${JSON.stringify(result.data)}`);
-  return result.data[0];
+  if (!result.ok) throw new Error(`create_job failed: ${JSON.stringify(result.data)}`);
+  const created = await rest(`/rest/v1/jobs?id=eq.${result.data}&select=*`, { token });
+  return created.data[0];
 }
 
 function phoneFree(row) {
   return !Object.keys(row).some((key) => /worker.*phone|phone.*worker/i.test(key));
+}
+
+/** Main districts only, weighted as in the product brief. Never "Бусад". */
+const DISTRICT_WEIGHTS = {
+  "Баянзүрх": 22, "Сонгинохайрхан": 20, "Хан-Уул": 15, "Баянгол": 15,
+  "Сүхбаатар": 10, "Чингэлтэй": 8, "Налайх": 4, "Багануур": 3, "Багахангай": 3,
+};
+
+function pickWeighted(districts, exclude = []) {
+  const pool = districts.filter((row) => DISTRICT_WEIGHTS[row.name] && !exclude.includes(row.id));
+  const total = pool.reduce((sum, row) => sum + DISTRICT_WEIGHTS[row.name], 0);
+  let roll = Math.random() * total;
+  for (const row of pool) {
+    roll -= DISTRICT_WEIGHTS[row.name];
+    if (roll <= 0) return row;
+  }
+  return pool[0];
 }
 
 async function main() {
@@ -211,10 +317,14 @@ async function main() {
     return;
   }
 
-  const district = (await rest("/rest/v1/districts?select=id,name&limit=1")).data?.[0];
+  const districts = (await rest("/rest/v1/districts?select=id,name")).data ?? [];
   const skills = (await rest("/rest/v1/skills?select=id,name&order=sort_order&limit=2")).data;
-  if (!district || !skills?.length)
+  if (districts.length === 0 || !skills?.length)
     throw new Error("Seed catalog is empty. Run npm run db:apply first.");
+  // Fixtures must not all land in one district (that made every job look local).
+  const district = pickWeighted(districts);
+  const jobDistrict2 = pickWeighted(districts, [district.id]);
+  if (!district) throw new Error("No main district found.");
   const skill1 = skills[0].id;
 
   // Fixtures are inserted with the same raw_user_meta_data the signup API would send, so the
@@ -326,7 +436,7 @@ async function main() {
   const superToken = superSession.access_token;
 
   const day = tomorrowISO();
-  const jobA = await insertJob(customerAToken, {
+  const jobA = await createJob(customerAToken, {
     customer_id: idOf("customerA"),
     skill_id: skill1,
     title: "Verify job A",
@@ -338,6 +448,188 @@ async function main() {
     pay_offer: 50000,
     address_note: "Verify district, building 1, entrance 2",
   });
+
+  const jobFields = {
+    skill_id: skill1,
+    title: "Verify declaration",
+    description: "",
+    district_id: district.id,
+    job_date: day,
+    job_slot: "full",
+    workers_needed: 1,
+    pay_offer: 10000,
+    address_note: "Verify district, building 9",
+  };
+
+  const directInsert = await rest("/rest/v1/jobs?select=id", {
+    method: "POST",
+    token: customerAToken,
+    body: { ...jobFields, customer_id: idOf("customerA"), status: "new" },
+    headers: { Prefer: "return=representation" },
+  });
+  check(
+    "customer cannot insert a job directly",
+    !directInsert.ok,
+    `status=${directInsert.status}`,
+  );
+
+  let declarationBlocked = false;
+  try {
+    await createJob(customerAToken, { ...jobFields, declaration: false });
+  } catch {
+    declarationBlocked = true;
+  }
+  check("create_job refuses p_declaration=false", declarationBlocked);
+
+  const workerCreate = await rest("/rest/v1/rpc/create_job", {
+    method: "POST",
+    token: workerAToken,
+    body: {
+      p_skill: skill1,
+      p_title: "Verify worker job",
+      p_description: "",
+      p_district: district.id,
+      p_job_date: day,
+      p_job_slot: "full",
+      p_workers_needed: 1,
+      p_pay_offer: 10000,
+      p_address_note: "Verify district, building 9",
+      p_declaration: true,
+      p_version: TERMS_VERSION,
+    },
+  });
+  check("worker cannot call create_job", !workerCreate.ok, `status=${workerCreate.status}`);
+
+  const declarationRow = await rest(
+    `/rest/v1/jobs?id=eq.${jobA.id}&select=declaration_accepted_at`,
+    { token: customerAToken },
+  );
+  check(
+    "create_job records the declaration time",
+    Boolean(declarationRow.data?.[0]?.declaration_accepted_at),
+  );
+
+  const ownConsents = await rest(
+    `/rest/v1/consents?user_id=eq.${idOf("customerA")}&select=id,kind,job_id`,
+    { token: customerAToken },
+  );
+  check(
+    "create_job writes a customer_declaration consent for the job",
+    (ownConsents.data ?? []).some(
+      (row) => row.kind === "customer_declaration" && row.job_id === jobA.id,
+    ),
+    JSON.stringify(ownConsents.data ?? []).slice(0, 120),
+  );
+
+  const otherConsents = await rest(
+    `/rest/v1/consents?user_id=eq.${idOf("customerA")}&select=id`,
+    { token: customerBToken },
+  );
+  check(
+    "a user cannot read another user's consents",
+    Array.isArray(otherConsents.data) && otherConsents.data.length === 0,
+  );
+
+  const consentId = ownConsents.data?.[0]?.id;
+  const consentUpdate = consentId
+    ? await rest(`/rest/v1/consents?id=eq.${consentId}`, {
+        method: "PATCH",
+        token: customerAToken,
+        body: { kind: "terms" },
+        headers: { Prefer: "return=representation" },
+      })
+    : { ok: false };
+  const consentDelete = consentId
+    ? await rest(`/rest/v1/consents?id=eq.${consentId}`, {
+        method: "DELETE",
+        token: customerAToken,
+      })
+    : { ok: false };
+  check("consents cannot be updated or deleted", !consentUpdate.ok && !consentDelete.ok);
+
+  const acceptTerms = await rest("/rest/v1/rpc/accept_consents", {
+    method: "POST",
+    token: workerAToken,
+    body: { p_kinds: ["terms", "privacy", "worker_declaration"], p_version: TERMS_VERSION },
+  });
+  const workerProfileTerms = await rest(
+    `/rest/v1/profiles?id=eq.${idOf("workerA")}&select=terms_version`,
+    { token: workerAToken },
+  );
+  check(
+    "accept_consents records terms on the profile",
+    acceptTerms.ok && workerProfileTerms.data?.[0]?.terms_version === TERMS_VERSION,
+    `status=${acceptTerms.status}`,
+  );
+
+  // ---------------------------------------------------------------- web push
+  const subscription = await rest("/rest/v1/push_subscriptions?select=id", {
+    method: "POST",
+    token: workerAToken,
+    body: {
+      user_id: idOf("workerA"),
+      endpoint: `https://push.example.test/verify-${runId}`,
+      p256dh: "verify-p256dh",
+      auth: "verify-auth",
+    },
+    headers: { Prefer: "return=representation" },
+  });
+  check(
+    "worker can save their own push subscription",
+    subscription.ok && subscription.data?.length === 1,
+    `status=${subscription.status}`,
+  );
+
+  const otherSubscriptions = await rest(
+    `/rest/v1/push_subscriptions?user_id=eq.${idOf("workerA")}&select=id`,
+    { token: workerBToken },
+  );
+  const adminSubscriptions = await rest(
+    `/rest/v1/push_subscriptions?user_id=eq.${idOf("workerA")}&select=id,endpoint`,
+    { token: adminAToken },
+  );
+  const outboxRead = await rest("/rest/v1/push_outbox?select=id,body", {
+    token: workerAToken,
+  });
+  check(
+    "nobody else can read subscriptions or the outbox",
+    (otherSubscriptions.data ?? []).length === 0 &&
+      !adminSubscriptions.ok &&
+      !outboxRead.ok,
+    `worker_read=${otherSubscriptions.status} admin_read=${adminSubscriptions.status} outbox=${outboxRead.status}`,
+  );
+
+  const pushStatus = await rest("/rest/v1/rpc/worker_push_status", {
+    method: "POST",
+    token: adminAToken,
+    body: { p_worker_id: idOf("workerA") },
+  });
+  check(
+    "worker_push_status returns only a boolean for the managing admin",
+    pushStatus.ok && pushStatus.data === true,
+    JSON.stringify(pushStatus.data).slice(0, 40),
+  );
+
+  await withDb((client) =>
+    client.query("insert into notifications (user_id, title, body, link) values ($1, $2, $3, $4)", [
+      idOf("workerA"),
+      "Verify notification",
+      "Verification body",
+      "/home",
+    ]),
+  );
+  const outboxCount = await withDb(async (client) => {
+    const { rows } = await client.query(
+      "select count(*)::int as count from push_outbox where user_id = $1",
+      [idOf("workerA")],
+    );
+    return rows[0].count;
+  });
+  check(
+    "a notification for a subscribed user creates exactly one outbox row",
+    outboxCount === 1,
+    `rows=${outboxCount}`,
+  );
 
   const otherCustomerRead = await rest(
     `/rest/v1/jobs?id=eq.${jobA.id}&select=id,customer_id,address_note`,
@@ -424,12 +716,12 @@ async function main() {
     Boolean(beforeRow) && beforeRow.address_note === null,
   );
 
-  const jobB = await insertJob(customerBToken, {
+  const jobB = await createJob(customerBToken, {
     customer_id: idOf("customerB"),
     skill_id: skill1,
     title: "Verify job B",
     description: "Second fixture job",
-    district_id: district.id,
+    district_id: (jobDistrict2 ?? district).id,
     job_date: day,
     job_slot: "full",
     workers_needed: 1,
@@ -448,12 +740,12 @@ async function main() {
   });
   check("double-booking blocked", claimB.ok && !doubleOffer.ok, `status=${doubleOffer.status}`);
 
-  const jobC = await insertJob(customerBToken, {
+  const jobC = await createJob(customerBToken, {
     customer_id: idOf("customerB"),
     skill_id: skill1,
     title: "Verify job C",
     description: "Race fixture job",
-    district_id: district.id,
+    district_id: (jobDistrict2 ?? district).id,
     job_date: day,
     job_slot: "pm",
     workers_needed: 2,
@@ -475,6 +767,30 @@ async function main() {
   check(
     "two admins claiming the same job -> exactly one wins",
     [claimA, claimB2].filter((result) => result.ok).length === 1,
+  );
+
+  const loadRows = await rest("/rest/v1/rpc/admin_loads", {
+    method: "POST",
+    token: superToken,
+    body: {},
+  });
+  const loadIds = Array.isArray(loadRows.data) ? loadRows.data.map((row) => row.id) : [];
+  const uniqueLoadIds = new Set(loadIds);
+  const adminProfiles = await withDb(async (client) => {
+    const { rows } = await client.query(
+      "select id from profiles where role = 'admin' and status = 'active'",
+    );
+    return rows.map((row) => row.id).sort();
+  });
+  check(
+    "admin_loads returns one row per active admin (no duplicates)",
+    loadRows.ok && uniqueLoadIds.size === loadIds.length,
+    `rows=${loadIds.length} unique=${uniqueLoadIds.size}`,
+  );
+  check(
+    "admin_loads returns no non-admin rows",
+    loadRows.ok && [...uniqueLoadIds].sort().join(",") === adminProfiles.join(","),
+    `returned=${loadIds.length} admins=${adminProfiles.length}`,
   );
 
   const accept = await rest("/rest/v1/rpc/respond_assignment", {
@@ -580,6 +896,17 @@ main()
     await cleanup();
     const remaining = await countFixtures().catch(() => -1);
     check("fixtures removed (zero rows remain)", remaining === 0, `remaining=${remaining}`);
+    const staffFixtures = await withDb(async (client) => {
+      const { rows } = await client.query(
+        `select count(*)::int as total
+           from profiles p
+           join auth.users u on u.id = p.id
+          where p.role in ('admin', 'super_admin')
+            and (u.email like 'verify-%@example.test' or p.full_name like 'Verify %')`,
+      );
+      return rows[0].total;
+    }).catch(() => -1);
+    check("no fixture account holds a staff role", staffFixtures === 0, `remaining=${staffFixtures}`);
     const failures = failedCount() + (crashed ? 1 : 0);
     console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
     if (failures > 0) process.exitCode = 1;

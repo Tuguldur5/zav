@@ -23,7 +23,7 @@ export default async function SecurityPage() {
   return (
     <StaffAuthFrame
       title="Аюулгүй байдал"
-      subtitle="Хоёр шатлалт баталгаажуулалт — энэ шаардлагагүйгээр /today, /super нээгдэхгүй."
+      subtitle="Хоёр шатлалт баталгаажуулалтыг идэвхжүүлнэ үү."
       footer="Нууц үгээ мартвал супер админ шинэчилж өгнө."
     >
       <SecurityClient

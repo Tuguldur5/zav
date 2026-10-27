@@ -9,6 +9,8 @@ export type Profile = {
   phone: string | null;
   district_id: string | null;
   status: ProfileStatus;
+  terms_version: string | null;
+  terms_accepted_at: string | null;
   created_at: string;
 };
 
@@ -19,6 +21,8 @@ export type Skill = {
   icon: string;
   sort_order: number;
   active: boolean;
+  /** Present after db/09_skills.sql; work that needs a closer check. */
+  sensitive?: boolean;
 };
 
 export type Job = {
@@ -61,6 +65,15 @@ export type Availability = {
   confirmed_at: string | null;
   confirmed_by_phone: boolean;
   created_by_staff: boolean;
+};
+
+export type Consent = {
+  id: string;
+  user_id: string;
+  kind: "terms" | "privacy" | "customer_declaration" | "worker_declaration" | "phone_check";
+  version: string;
+  job_id: string | null;
+  accepted_at: string;
 };
 
 export type Notification = {

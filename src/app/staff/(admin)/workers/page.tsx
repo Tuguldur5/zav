@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle } from "@/components/staff";
+import { PageHeader, StaffNote } from "@/components/staff";
 import { DataTable } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusPill } from "@/components/ui/StatusPill";
@@ -25,7 +25,7 @@ export default async function AdminWorkersPage({
   const params = await searchParams;
   const q = (params.q ?? "").trim();
   const focus = params.focus === "q";
-  const { supabase, user, profile } = await requireRole(["admin", "super_admin"]);
+  const { supabase, user, profile } = await requireRole(["admin"]);
   const superAdmin = profile.role === "super_admin";
 
   let query = supabase
@@ -90,12 +90,11 @@ export default async function AdminWorkersPage({
 
   return (
     <>
-      <PageTitle
-        title="Миний ажилчид"
-        emoji="👥"
+      <PageHeader
+        title="Ажилчид"
         subtitle={`Нийт ${workers.length} ажилтан${q ? ` · хайлт: ${q}` : ""}`}
-        search={
-          <form method="GET" className="staff-search w-full sm:w-72">
+        actions={
+          <form method="GET" className="st-note w-full sm:w-72">
             <Search aria-hidden className="size-4 shrink-0" />
             <label htmlFor="q" className="sr-only">
               Ажилтан хайх
@@ -146,10 +145,10 @@ export default async function AdminWorkersPage({
         }
       />
 
-      <p className="staff-banner">
+      <StaffNote>
         <Search aria-hidden className="size-4 shrink-0" />
-        Мөр дээр дарж ажилтны хуудас руу орно. Дэлгэц дээр хүснэгт, утас дээр карт харагдана.
-      </p>
+        Мөр дээр дарж ажилтны хуудас руу орно. Утас дээр жагсаалт карт болно.
+      </StaffNote>
     </>
   );
 }

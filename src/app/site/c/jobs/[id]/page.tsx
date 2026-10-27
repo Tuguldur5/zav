@@ -3,12 +3,9 @@ import { notFound } from "next/navigation";
 import { CalendarDays, Check, Circle, Clock, MapPin, Phone, Users } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { getSupportPhone } from "@/lib/settings";
-import { TopAppBar } from "@/components/ui/TopAppBar";
-import { Card } from "@/components/ui/Card";
-import { PhoneButton } from "@/components/ui/PhoneButton";
-import { StatusPill } from "@/components/ui/StatusPill";
-import { jobStatus, slotLabels } from "@/lib/status";
+import { Container, Card, Note, StatusTag, buttonCls } from "@/components/public/ui";
 import { formatDateMn, formatDateTimeMn, formatMoney } from "@/lib/dates";
+import { orderStatus, slotLabels } from "@/lib/status";
 import type { Job } from "@/lib/types";
 import { CancelJobButton } from "./CancelJobButton";
 
@@ -23,13 +20,7 @@ type CustomerAssignment = {
   status: string;
 };
 
-const steps = [
-  "Зар илгээсэн",
-  "Админ хүлээж авсан",
-  "Ажилтан хайж байна",
-  "Ажилтан баталгаажсан",
-  "Ажил дууссан",
-];
+const STEPS = ["Хүлээн авсан", "Админ авсан", "Ажилтан олдлоо", "Баталгаажсан", "Дууссан"];
 
 function stepIndex(status: string): number {
   if (status === "new") return 0;
@@ -62,86 +53,86 @@ export default async function CustomerJobPage({ params }: { params: Promise<{ id
   )?.[0];
   const current = stepIndex(job.status);
   const canCancel = ["new", "claimed", "matched"].includes(job.status);
+  const meta = orderStatus[job.status] ?? orderStatus.new;
 
   return (
-    <>
-      <TopAppBar title="Зарын дэлгэрэнгүй" backHref="/c/jobs" />
-      <main className="mx-auto grid w-full max-w-[1200px] grid-cols-1 gap-6 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <Card className="flex flex-col gap-2">
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="text-[1.2em] font-semibold">{job.title}</h2>
-              <StatusPill status={job.status} table={jobStatus} />
-            </div>
-            <p className="text-[0.9em] text-muted">Илгээсэн: {formatDateTimeMn(job.created_at)}</p>
-          </Card>
+    <Container className="py-6 sm:py-8">
+      <Link href="/c" className="text-[0.9em] text-muted hover:text-primary">
+        ← Миний захиалгууд
+      </Link>
 
-          {job.status === "done" ? (
-            <Card className="flex items-center gap-3 bg-success-container text-success">
-              <span className="flex size-12 items-center justify-center rounded-full bg-surface">
-                <Check aria-hidden className="size-7" />
-              </span>
-              <div>
-                <p className="font-semibold">Ажил амжилттай дууссан</p>
-                <p className="text-[0.9em]">Баярлалаа. Дараагийн ажилдаа бидэнтэй хамтраарай.</p>
-              </div>
-            </Card>
+      <div className="mt-3 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-5">
+          <div>
+            <h1 className="text-[24px] font-semibold leading-[30px] sm:text-[28px] sm:leading-[32px]">
+              {job.title}
+            </h1>
+            <p className="mt-1 text-[0.9em] text-muted">
+              <StatusTag tone={meta.tone}>{meta.label}</StatusTag>
+              <span> · Илгээсэн: {formatDateTimeMn(job.created_at)}</span>
+            </p>
+          </div>
+
+          {job.status === "cancelled" ? (
+            <Note tone="err">Энэ захиалга цуцлагдсан.</Note>
           ) : null}
 
-          <Card className="grid gap-3">
+          <Card className="flex flex-col gap-3 p-4">
             <p className="flex items-center gap-2">
-              <CalendarDays aria-hidden className="size-5 text-primary" />
-              <span>{formatDateMn(job.job_date)}</span>
+              <CalendarDays aria-hidden className="size-4 text-primary" strokeWidth={1.75} />
+              {formatDateMn(job.job_date)}
               <span className="flex items-center gap-1 text-[0.9em] text-muted">
-                <Clock aria-hidden className="size-4" />
+                <Clock aria-hidden className="size-4" strokeWidth={1.75} />
                 {slotLabels[job.job_slot]}
               </span>
             </p>
             <p className="flex items-start gap-2">
-              <MapPin aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
+              <MapPin aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" strokeWidth={1.75} />
               <span>
                 {district ?? "Дүүрэг"}, {job.address_note}
               </span>
             </p>
             <p className="flex items-center gap-2">
-              <Users aria-hidden className="size-5 text-primary" />
+              <Users aria-hidden className="size-4 text-primary" strokeWidth={1.75} />
               {job.workers_needed} ажилтан · {formatMoney(job.pay_offer)}
             </p>
             {job.description ? (
-              <p className="rounded-md bg-bg px-3 py-2 text-[0.9em]">{job.description}</p>
+              <p className="rounded-[8px] bg-surface2 px-3 py-2 text-[0.9em]">{job.description}</p>
             ) : null}
           </Card>
 
-          <Card>
-            <h3 className="mb-3 font-semibold">Явц</h3>
-            <ol className="flex flex-col gap-0">
-              {steps.map((label, index) => {
+          <Card className="p-4">
+            <h2 className="text-[0.95em] font-semibold">Явц</h2>
+            <ol className="mt-3 flex flex-col">
+              {STEPS.map((label, index) => {
                 const done = current > index || job.status === "done";
                 const active = current === index && job.status !== "done";
                 return (
                   <li key={label} className="flex gap-3">
                     <div className="flex flex-col items-center">
                       <span
-                        className={`flex size-7 items-center justify-center rounded-full ${
+                        className={`flex size-6 items-center justify-center rounded-full ${
                           done
-                            ? "bg-success text-white"
+                            ? "bg-ok text-white"
                             : active
                               ? "bg-primary text-on-primary"
-                              : "bg-container text-muted"
+                              : "bg-surface2 text-muted"
                         }`}
                       >
                         {done ? (
-                          <Check aria-hidden className="size-4" />
+                          <Check aria-hidden className="size-3.5" strokeWidth={2} />
                         ) : (
-                          <Circle aria-hidden className="size-4" />
+                          <Circle aria-hidden className="size-3" strokeWidth={2} />
                         )}
                       </span>
-                      {index < steps.length - 1 ? (
-                        <span className={`h-6 w-0.5 ${done ? "bg-success" : "bg-container"}`} />
+                      {index < STEPS.length - 1 ? (
+                        <span className={`h-6 w-px ${done ? "bg-ok" : "bg-divider"}`} />
                       ) : null}
                     </div>
                     <p
-                      className={`pb-3 text-[0.9em] ${active ? "font-semibold" : done ? "text-ink" : "text-muted"}`}
+                      className={`pb-3 text-[0.92em] ${
+                        active ? "font-medium" : done ? "text-ink" : "text-muted"
+                      }`}
                     >
                       {label}
                     </p>
@@ -149,71 +140,58 @@ export default async function CustomerJobPage({ params }: { params: Promise<{ id
                 );
               })}
             </ol>
-            {job.status === "cancelled" ? (
-              <p className="mt-2 rounded-md bg-error-container px-3 py-2 text-[0.9em] text-error">
-                Энэ зар цуцлагдсан.
-              </p>
-            ) : null}
           </Card>
 
           {canCancel ? <CancelJobButton jobId={job.id} /> : null}
-
-          <Link
-            href="/c/jobs"
-            className="text-center text-[0.9em] text-primary underline underline-offset-2"
-          >
-            Миний зарууд руу буцах
-          </Link>
         </div>
 
-        {/* Sticky contact column on >=1024px; stacks below on phones. */}
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+        <aside className="flex flex-col gap-4">
           {assignments.length > 0 ? (
-            <Card className="flex flex-col gap-3">
-              <h3 className="font-semibold">Таны ажилтан</h3>
-              {assignments.map((assignment) => (
-                <div
-                  key={assignment.assignment_id}
-                  className="rounded-md border border-container p-3"
-                >
-                  <p className="font-semibold">{assignment.worker_first_name}</p>
-                  <p className="text-[0.9em] text-muted">{assignment.skill}</p>
-                </div>
-              ))}
+            <Card className="p-4">
+              <h2 className="text-[0.95em] font-semibold">Таны ажилтан</h2>
+              <div className="mt-3 flex flex-col gap-3">
+                {assignments.map((assignment) => (
+                  <div key={assignment.assignment_id}>
+                    <p className="font-medium">{assignment.worker_first_name}</p>
+                    <p className="text-[0.88em] text-muted">{assignment.skill}</p>
+                  </div>
+                ))}
+              </div>
             </Card>
           ) : null}
 
-          <Card className="flex flex-col gap-3">
-            <h3 className="flex items-center gap-2 font-semibold">
-              <Phone aria-hidden className="size-5 text-primary" />
-              Хариуцсан админ
-            </h3>
+          <Card className="p-4">
+            <h2 className="text-[0.95em] font-semibold">Хариуцсан админ</h2>
             {admin?.admin_name ? (
               <>
-                <p className="font-medium">{admin.admin_name}</p>
-                <PhoneButton
-                  phone={admin.admin_phone}
-                  label="Админд залгах"
-                  name={admin.admin_name}
-                  full
-                />
+                <p className="mt-2 font-medium">{admin.admin_name}</p>
+                {admin.admin_phone ? (
+                  <a
+                    href={`tel:${admin.admin_phone.replace(/[^\d+]/g, "")}`}
+                    className={`${buttonCls("primary", true)} mt-3`}
+                  >
+                    <Phone aria-hidden className="size-4" strokeWidth={1.75} />
+                    Админд залгах
+                  </a>
+                ) : null}
               </>
             ) : (
-              <p className="text-[0.9em] text-muted">
-                Манай админ зарыг удахгүй хүлээж авна. Түр хүлээнэ үү.
+              <p className="mt-2 text-[0.9em] text-muted">
+                Манай админ захиалгыг удахгүй хүлээж авна. Түр хүлээнэ үү.
               </p>
             )}
             {supportPhone ? (
-              <a
-                href={`tel:${supportPhone.replace(/[^\d+]/g, "")}`}
-                className="text-[0.9em] text-primary underline"
-              >
-                Тусламжийн утас: {supportPhone}
+              <a href={`tel:${supportPhone.replace(/[^\d+]/g, "")}`} className="mt-3 block text-[0.88em] text-muted">
+                Тусламж: {supportPhone}
               </a>
             ) : null}
           </Card>
+
+          <Card className="p-4 text-[0.88em] text-muted">
+            Ажилтны утас танд харагдахгүй. Асуудал гарвал админтай холбогдоно уу.
+          </Card>
         </aside>
-      </main>
-    </>
+      </div>
+    </Container>
   );
 }

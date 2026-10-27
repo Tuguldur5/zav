@@ -1,28 +1,54 @@
 import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
-const vars = Object.fromEntries(
-  [...css.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6});/g)].map((match) => [match[1], match[2]]),
-);
-vars.white = "#FFFFFF";
 
-/** Palette blocks need separate parsing: the super tone overrides the frame. */
+/** Every raw custom-property value, hex or `var(--alias)`. */
+function rawDeclarations(source) {
+  return new Map(
+    [...source.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map((match) => [
+      match[1],
+      match[2].trim(),
+    ]),
+  );
+}
+
+const allRaw = rawDeclarations(css);
+
+function palette(source) {
+  const local = rawDeclarations(source);
+  function resolve(raw, depth = 0) {
+    if (!raw || depth > 10) return null;
+    const hex = raw.match(/#[0-9a-fA-F]{6}/);
+    if (hex) return hex[0].toUpperCase();
+    const alias = raw.match(/var\(--([a-z0-9-]+)\)/);
+    if (alias) {
+      return resolve(local.get(alias[1]) ?? allRaw.get(alias[1]), depth + 1);
+    }
+    return null;
+  }
+
+  const out = {};
+  for (const [name, raw] of local) {
+    const hex = resolve(raw);
+    if (hex) out[name] = hex;
+  }
+  return out;
+}
+
+/** `:root` is the public palette; later blocks (staff) redefine some names. */
 function block(startMarker) {
   const start = css.indexOf(startMarker);
   if (start < 0) return {};
   const open = css.indexOf("{", start);
   const end = css.indexOf("\n}", open);
-  const body = css.slice(open, end);
-  return Object.fromEntries(
-    [...body.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6});/g)].map((match) => [
-      match[1],
-      match[2],
-    ]),
-  );
+  return palette(css.slice(open, end));
 }
 
+const vars = block(":root {");
+vars.white = "#FFFFFF";
+
 const staff = block(".staff-theme {");
-// The super tone only overrides the frame and the active pill.
+// The super tone only redefines the teal accent family.
 const staffSuper = { ...staff, ...block('.staff-theme[data-staff-tone="super"]') };
 
 function channels(hex) {
@@ -46,42 +72,29 @@ function ratio(fg, bg) {
 }
 
 const textPairs = [
-  ["ink", "surface", "body on surface"],
-  ["ink", "bg", "body on page"],
-  ["ink", "surface-2", "body on container"],
-  ["muted", "surface", "muted on surface"],
-  ["muted", "bg", "muted on page"],
-  ["muted", "surface-2", "muted on container"],
-  ["primary", "surface", "primary link on surface"],
-  ["primary", "bg", "primary link on page"],
-  ["primary", "surface-2", "primary link on container"],
-  ["on-primary", "primary", "filled button"],
-  ["on-primary-container", "primary-container", "tonal chip/button"],
-  ["warm-ink", "warm", "warning text"],
-  ["success", "success-container", "success text"],
-  ["error", "error-container", "error text"],
-  ["success", "surface", "success text on surface"],
-  ["error", "surface", "error text on surface"],
-  ["white", "super", "super app bar"],
-  ["white", "primary", "user app bar"],
-];
-
-const iconPairs = [
-  ["outline", "surface", "border/icon on surface"],
-  ["outline", "bg", "border/icon on page"],
-  ["outline", "surface-2", "border/icon on container"],
-  ["primary", "surface", "primary icon on surface"],
-  ["primary", "bg", "primary icon on page"],
-  ["error", "surface", "error icon on surface"],
-  ["success", "surface", "success icon on surface"],
-  ["warm-ink", "warm", "warm icon on warm"],
+  ["ink", "paper", "ink on paper", 7],
+  ["ink", "surface", "ink on surface", 7],
+  ["muted", "paper", "muted on paper", 4.5],
+  ["muted", "surface", "muted on surface", 4.5],
+  ["muted-on-ink", "ink", "muted-on-ink on ink", 4.5],
+  ["muted-on-ink", "ink-2", "muted-on-ink on ink-2", 4.5],
+  ["ink", "signal", "ink on signal", 7],
+  ["ink", "signal-hover", "ink on signal-hover", 7],
+  ["white", "ink", "white on ink", 7],
+  ["link", "paper", "link on paper", 4.5],
+  ["link", "surface", "link on surface", 4.5],
+  ["line-strong", "paper", "line-strong on paper", 3],
+  ["line-strong", "surface", "line-strong on surface", 3],
+  ["ok", "ok-bg", "ok on ok-bg", 4.5],
+  ["warn", "warn-bg", "warn on warn-bg", 4.5],
+  ["err", "err-bg", "err on err-bg", 4.5],
 ];
 
 let failed = 0;
 
-function run(pairs, minimum, kind) {
-  console.log(`\n${kind} pairs (minimum ${minimum}:1)`);
-  for (const [fgName, bgName, label] of pairs) {
+function run(pairs, kind) {
+  console.log(`\n${kind} pairs`);
+  for (const [fgName, bgName, label, minimum] of pairs) {
     const fg = vars[fgName];
     const bg = vars[bgName];
     if (!fg || !bg) {
@@ -93,38 +106,36 @@ function run(pairs, minimum, kind) {
     const ok = value >= minimum;
     if (!ok) failed += 1;
     console.log(
-      `${ok ? "PASS" : "FAIL"}  ${value.toFixed(2)}:1  ${label}  (${fgName} on ${bgName})`,
+      `${ok ? "PASS" : "FAIL"}  ${value.toFixed(2)}:1  ${label} (minimum ${minimum}:1)`,
     );
   }
 }
 
-run(textPairs, 4.5, "Text");
-run(iconPairs, 3, "Border/icon");
+run(textPairs, "Public");
 
-/** Staff Control Center: one blue family, status colours on pills only. */
-const staffTextPairs = [
-  ["adm-frame-ink", "adm-frame", "white on admin frame", staff, 4.5],
-  ["adm-frame-ink", "adm-frame", "white on super frame", staffSuper, 4.5],
-  ["adm-frame-ink", "adm-pill-active", "white on admin active pill", staff, 7],
-  ["adm-frame-ink", "adm-pill-active", "white on super active pill", staffSuper, 7],
-  ["adm-ink", "adm-tint-1", "ink on tint-1", staff, 7],
-  ["adm-ink", "adm-tint-2", "ink on tint-2", staff, 7],
-  ["adm-ink", "adm-tint-3", "ink on tint-3", staff, 7],
-  ["adm-ink", "adm-tint-4", "ink on tint-4", staff, 7],
-  ["adm-muted", "adm-tint-1", "muted on tint-1", staff, 4.5],
-  ["adm-muted", "adm-tint-2", "muted on tint-2", staff, 4.5],
-  ["adm-muted", "adm-tint-3", "muted on tint-3", staff, 4.5],
-  ["adm-muted", "adm-paper", "muted on paper", staff, 4.5],
-  ["adm-outline", "adm-paper", "outline on paper", staff, 3],
-  ["adm-ok", "adm-ok-bg", "success pill", staff, 4.5],
-  ["adm-warn", "adm-warn-bg", "warning pill", staff, 4.5],
-  ["adm-err", "adm-err-bg", "error pill", staff, 4.5],
+/**
+ * Staff v2: white page, 1px borders, teal only for actions and active state.
+ * Each pair carries its own minimum from the acceptance table.
+ */
+const staffPairs = () => [
+  ["st-ink", "st-surface", "ink on white", 7],
+  ["st-muted", "st-surface", "muted on white", 4.5],
+  ["st-muted", "st-subtle", "muted on subtle", 4.5],
+  ["st-on-accent", "st-accent", "white on accent", 4.5],
+  ["st-accent", "st-surface", "accent text on white", 4.5],
+  ["st-accent", "st-accent-soft", "accent text on accent-soft", 4.5],
+  ["st-accent-ink", "st-accent-soft", "accent-ink on accent-soft", 7],
+  ["st-accent-ink", "st-accent-soft-2", "accent-ink on accent-soft-2", 7],
+  ["st-ok", "st-ok-bg", "success pill", 4.5],
+  ["st-warn", "st-warn-bg", "warning pill", 4.5],
+  ["st-err", "st-err-bg", "error pill", 4.5],
+  ["st-outline", "st-surface", "outline on white", 3],
 ];
 
-console.log("\nStaff token pairs (per-pair minimum)");
-for (const [fgKey, bgKey, label, palette, minimum] of staffTextPairs) {
-  const fg = palette[fgKey];
-  const bg = palette[bgKey];
+console.log("\nStaff token pairs — admin tone");
+for (const [fgKey, bgKey, label, minimum] of staffPairs()) {
+  const fg = staff[fgKey];
+  const bg = staff[bgKey];
   if (!fg || !bg) {
     console.log(`FAIL  ${label}: missing staff token (${fgKey}/${bgKey})`);
     failed += 1;
@@ -133,9 +144,22 @@ for (const [fgKey, bgKey, label, palette, minimum] of staffTextPairs) {
   const value = ratio(fg, bg);
   const ok = value >= minimum;
   if (!ok) failed += 1;
-  console.log(
-    `${ok ? "PASS" : "FAIL"}  ${value.toFixed(2)}:1  ${label} (minimum ${minimum}:1)`,
-  );
+  console.log(`${ok ? "PASS" : "FAIL"}  ${value.toFixed(2)}:1  ${label} (minimum ${minimum}:1)`);
+}
+
+console.log("\nStaff token pairs — super tone");
+for (const [fgKey, bgKey, label, minimum] of staffPairs()) {
+  const fg = staffSuper[fgKey];
+  const bg = staffSuper[bgKey];
+  if (!fg || !bg) {
+    console.log(`FAIL  ${label}: missing staff token (${fgKey}/${bgKey})`);
+    failed += 1;
+    continue;
+  }
+  const value = ratio(fg, bg);
+  const ok = value >= minimum;
+  if (!ok) failed += 1;
+  console.log(`${ok ? "PASS" : "FAIL"}  ${value.toFixed(2)}:1  ${label} (minimum ${minimum}:1)`);
 }
 
 const INK = vars.ink;

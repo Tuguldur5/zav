@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 
-/** Appears above the dock while rows or cards are multi-selected. */
+/** Flat sticky bar at the bottom of a multi-select list (never a dock). */
 export function BulkBar({
   count,
   onClear,
@@ -16,7 +16,7 @@ export function BulkBar({
   if (count === 0) return null;
 
   return (
-    <div className="staff-bulkbar" role="region" aria-label="Олон сонголт">
+    <div className="st-bulkbar" role="region" aria-label="Олон сонголт">
       <span className="shrink-0 text-[13px] font-semibold">Сонгосон: {count}</span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
         {children}

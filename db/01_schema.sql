@@ -163,7 +163,7 @@ insert into skills (name, icon, sort_order) values
 on conflict (name) do nothing;
 
 insert into settings (key, value) values
-  ('support_phone', '"+976 7000 1234"'::jsonb),
+  ('support_phone', '""'::jsonb),
   ('support_text', '"Ажлын өдөр 09:00-18:00"'::jsonb)
 on conflict (key) do nothing;
 

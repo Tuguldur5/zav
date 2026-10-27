@@ -1,6 +1,6 @@
 import { Package } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle } from "@/components/staff";
+import { PageHeader, PageTabs, StaffNote, settingsTabs } from "@/components/staff";
 import type { District, Skill } from "@/lib/types";
 import { CatalogManager } from "./CatalogManager";
 
@@ -17,11 +17,12 @@ export default async function SuperCatalogPage() {
 
   return (
     <>
-      <PageTitle title="Каталог" subtitle={`Мэргэжил ${skills.length} · дүүрэг ${districts.length}`} />
-      <p className="staff-banner">
+      <PageHeader title="Тохиргоо" subtitle={`Каталог · мэргэжил ${skills.length} · дүүрэг ${districts.length}`} />
+      <PageTabs label="Тохиргооны хэсэг" active="/super/catalog" tabs={settingsTabs} />
+      <StaffNote>
         <Package aria-hidden className="size-4 shrink-0" />
         Идэвхгүй мэргэжил шинэ зар дээр харагдахгүй, одоогийн зарыг өөрчлөхгүй.
-      </p>
+      </StaffNote>
       <CatalogManager skills={skills} districts={districts} />
     </>
   );

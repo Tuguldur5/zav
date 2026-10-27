@@ -1,23 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { hostKind, normalizeHost } from "@/lib/hosts";
-import { SUPABASE_ANON_KEY, SUPABASE_URL, hasSupabaseConfig } from "@/lib/supabase/config";
+import { SUPABASE_URL } from "@/lib/supabase/config";
+import {
+  clearSupabaseCookies,
+  logStaleCookieOnce,
+  readSession,
+  requestCookieNames,
+} from "@/lib/supabase/middleware";
 
-const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/join"];
-const RATE_LIMIT = 5;
-const RATE_WINDOW_MS = 60_000;
+/** POST endpoints that start a session or send an email: 5 per minute per IP. */
+const POST_LIMIT_PATHS = ["/login", "/register", "/forgot-password"];
+const POST_LIMIT = 5;
+/** Email-link endpoints: 30 per minute per IP (mail scanners follow links). */
+const LINK_LIMIT_PATHS = ["/auth/confirm", "/auth/callback"];
+const LINK_LIMIT = 30;
+const WINDOW_MS = 60_000;
 const STAFF_IDLE_MS = 30 * 60 * 1000;
 const SEEN_COOKIE = "zav_staff_seen";
+
 /**
  * Next may re-enter middleware for an internal rewrite. This unguessable
- * per-process token lets those requests through while keeping /site and
- * /staff 404 for real clients.
+ * per-process token lets those requests through while keeping the internal
+ * folders (/site, /worker, /staff) 404 for real clients.
  */
 const INTERNAL_HEADER = "x-zav-internal";
-/**
- * Kept on globalThis: dev rebuilds the middleware module between requests, and
- * a per-module token made the rewritten request look external and 404.
- */
 const globalStore = globalThis as unknown as { __zavInternalToken?: string };
 const INTERNAL_TOKEN = (globalStore.__zavInternalToken ??= crypto.randomUUID());
 
@@ -27,15 +33,15 @@ const INTERNAL_TOKEN = (globalStore.__zavInternalToken ??= crypto.randomUUID());
  */
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-function rateLimited(key: string): boolean {
+function rateLimited(key: string, max: number): boolean {
   const now = Date.now();
   const bucket = buckets.get(key);
   if (!bucket || bucket.resetAt < now) {
-    buckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
     return false;
   }
   bucket.count += 1;
-  return bucket.count > RATE_LIMIT;
+  return bucket.count > max;
 }
 
 function clientIp(req: NextRequest): string {
@@ -62,6 +68,8 @@ function securityHeaders(): Headers {
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     `connect-src 'self'${supabaseOrigin ? ` ${supabaseOrigin} wss://${new URL(SUPABASE_URL).host}` : ""}`,
+    "manifest-src 'self'",
+    "worker-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -86,33 +94,58 @@ function notFound(headers: Headers): NextResponse {
   });
 }
 
+function tooManyRequests(headers: Headers): NextResponse {
+  return new NextResponse("Хэт олон оролдлого. 1 минутын дараа дахин оролдоно уу.", {
+    status: 429,
+    headers: { ...Object.fromEntries(headers), "Content-Type": "text/plain; charset=utf-8" },
+  });
+}
+
+const PREFIX = {
+  customer: "/site",
+  worker: "/worker",
+  staff: "/staff",
+} as const;
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const host = normalizeHost(req.headers.get("x-forwarded-host") ?? req.headers.get("host"));
   const kind = hostKind(host);
 
   const headers = securityHeaders();
-  headers.set(
-    "X-Zav-In",
-    `${req.headers.get("x-zav-path") ?? "-"}|${req.headers.get("x-zav-internal") ?? "-"}`,
-  );
   if (kind === "staff") headers.set("X-Robots-Tag", "noindex, nofollow");
 
-  if (
-    req.headers.get(INTERNAL_HEADER) === INTERNAL_TOKEN ||
-    req.headers.get("x-zav-path")
-  ) {
+  // Internal rewrite of the same request: apply headers, do not rewrite again.
+  if (req.headers.get(INTERNAL_HEADER) === INTERNAL_TOKEN) {
     const res = NextResponse.next();
     headers.forEach((value, key) => res.headers.set(key, value));
-    res.headers.set("x-zav-debug", `pass|${pathname}|${req.headers.get("x-zav-path") ?? "-"}`);
     return res;
   }
 
   if (kind === "unknown") return notFound(headers);
-  if (pathname.startsWith("/site") || pathname.startsWith("/staff")) {
+
+  // The internal folders are never addressable from the outside.
+  if (
+    pathname === "/site" ||
+    pathname.startsWith("/site/") ||
+    pathname === "/worker" ||
+    pathname.startsWith("/worker/") ||
+    pathname === "/staff" ||
+    pathname.startsWith("/staff/")
+  ) {
     return notFound(headers);
   }
-  if (kind === "staff" && pathname.startsWith("/auth")) return notFound(headers);
+
+  // Every host serves its own login, recovery and confirm pages, so the email
+  // link always lands where the account belongs.
+  if (
+    kind === "staff" &&
+    pathname.startsWith("/auth") &&
+    pathname !== "/auth/callback" &&
+    pathname !== "/auth/confirm"
+  ) {
+    return notFound(headers);
+  }
   if (kind === "staff" && (pathname === "/__kit" || pathname.startsWith("/__kit/"))) {
     return notFound(headers);
   }
@@ -121,98 +154,89 @@ export async function middleware(req: NextRequest) {
   }
   if (pathname === "/kit" || pathname.startsWith("/kit/")) return notFound(headers);
 
-  // API routes are host-neutral; only the health probe exists.
-  if (pathname === "/api/health") {
+  // Host-neutral endpoints and root files. robots.txt and sitemap.xml live at
+  // the app root and read the Host header themselves (one policy per host), so
+  // they are passed through rather than rewritten under an audience prefix.
+  if (
+    pathname === "/api/health" ||
+    pathname === "/sw.js" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml"
+  ) {
     const res = NextResponse.next();
     headers.forEach((value, key) => res.headers.set(key, value));
     return res;
   }
   if (pathname.startsWith("/api/")) return notFound(headers);
 
-  if (pathname === "/robots.txt") {
-    const res = NextResponse.next();
-    headers.forEach((value, key) => res.headers.set(key, value));
-    return res;
-  }
-
-  if (kind === "site" && (pathname === "/manifest.webmanifest" || pathname === "/icon.svg")) {
-    const res = NextResponse.next();
-    headers.forEach((value, key) => res.headers.set(key, value));
-    return res;
-  }
-
+  const ip = clientIp(req);
   if (
     req.method === "POST" &&
-    AUTH_PATHS.some((path) => pathname === path || pathname.startsWith(path + "/"))
+    POST_LIMIT_PATHS.some((path) => pathname === path || pathname.startsWith(path + "/")) &&
+    rateLimited(`${ip}:post:${pathname}`, POST_LIMIT)
   ) {
-    if (rateLimited(`${clientIp(req)}:${pathname}`)) {
-      return new NextResponse("Хэт олон оролдлого. 1 минутын дараа дахин оролдоно уу.", {
-        status: 429,
-        headers: { ...Object.fromEntries(headers), "Content-Type": "text/plain; charset=utf-8" },
-      });
-    }
+    return tooManyRequests(headers);
+  }
+  if (
+    req.method === "GET" &&
+    LINK_LIMIT_PATHS.some((path) => pathname === path) &&
+    rateLimited(`${ip}:link:${pathname}`, LINK_LIMIT)
+  ) {
+    return tooManyRequests(headers);
   }
 
   // Refresh the Supabase session and collect cookies to set on the response.
-  const pendingCookies: { name: string; value: string; options: Record<string, unknown> }[] = [];
-  let hasUser = false;
+  // Cookies stay host-only: three hosts, three independent sessions. A stale
+  // cookie is cleared and the visitor is treated as logged out.
+  const session = await readSession(req);
+  let hasUser = Boolean(session.user);
   let signedOutForIdle = false;
 
-  if (hasSupabaseConfig()) {
-    const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      cookies: {
-        getAll: () => req.cookies.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            pendingCookies.push({ name, value, options: options ?? {} });
-          });
-        },
-      },
-    });
+  if (session.stale) {
+    hasUser = false;
+    logStaleCookieOnce();
+  }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    hasUser = Boolean(user);
-
-    if (hasUser && kind === "staff" && !pathname.startsWith("/login")) {
-      const seen = Number(req.cookies.get(SEEN_COOKIE)?.value ?? 0);
-      if (seen > 0 && Date.now() - seen > STAFF_IDLE_MS) {
-        await supabase.auth.signOut();
-        signedOutForIdle = true;
-      }
+  if (hasUser && kind === "staff" && !pathname.startsWith("/login")) {
+    const seen = Number(req.cookies.get(SEEN_COOKIE)?.value ?? 0);
+    if (seen > 0 && Date.now() - seen > STAFF_IDLE_MS) {
+      // signOut clears the session cookies through the same `setAll` above.
+      if (session.client) await session.client.auth.signOut().catch(() => undefined);
+      signedOutForIdle = true;
+      hasUser = false;
     }
   }
 
-  const prefix = kind === "staff" ? "/staff" : "/site";
+  const prefix = PREFIX[kind];
   const target = req.nextUrl.clone();
   if (pathname === "/") target.pathname = prefix;
   else if (pathname === "/__kit" || pathname.startsWith("/__kit/")) {
-    // Dev-only component gallery, e.g. /__kit/shell/admin -> /site/kit/shell/admin.
+    // Dev-only component gallery, e.g. /__kit -> /site/kit.
     target.pathname = `/site/kit${pathname.slice("/__kit".length)}`;
   } else target.pathname = `${prefix}${pathname}`;
 
   const rewriteHeaders = new Headers(req.headers);
   rewriteHeaders.set(INTERNAL_HEADER, INTERNAL_TOKEN);
-  // The root layout reads these to put data-audience/data-tone on <html>
-  // server-side: the staff frame colour is chosen in the first byte of HTML.
-  // The dev-only shell previews of the staff area paint the frame too, so the
-  // verification script can measure them on the user host.
-  const kitStaff = pathname === "/__kit/shell/admin" || pathname === "/__kit/shell/super";
-  rewriteHeaders.set("x-zav-audience", kind === "staff" || kitStaff ? "staff" : "public");
+  // The root layout reads this to pick the audience palette server-side, in the
+  // first byte of HTML. Staff keeps its own theme; both user hosts share one.
+  rewriteHeaders.set("x-zav-audience", kind === "staff" ? "staff" : "public");
+  rewriteHeaders.set("x-zav-host-kind", kind);
   rewriteHeaders.set(
     "x-zav-tone",
     pathname.startsWith("/super") || pathname.endsWith("/super") ? "super" : "admin",
   );
-  rewriteHeaders.set("x-zav-path", pathname);
 
   const res = signedOutForIdle
     ? NextResponse.redirect(new URL("/login?timeout=1", req.url))
     : NextResponse.rewrite(target, { request: { headers: rewriteHeaders } });
 
-  pendingCookies.forEach(({ name, value, options }) => {
-    res.cookies.set(name, value, { ...options, domain: undefined });
-  });
+  if (session.stale) {
+    clearSupabaseCookies(res, requestCookieNames(req));
+  } else {
+    session.pendingCookies.forEach(({ name, value, options }) => {
+      res.cookies.set(name, value, { ...options, domain: undefined });
+    });
+  }
 
   if (signedOutForIdle) {
     res.cookies.delete(SEEN_COOKIE);
@@ -230,8 +254,12 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 
+/**
+ * Static assets and the icon files skip the middleware entirely. robots.txt and
+ * manifest.webmanifest are NOT skipped: they are host-routed dynamic routes.
+ */
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
+    "/((?!_next/static|_next/image|favicon\\.(?:ico|png|svg)|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf)$).*)",
   ],
 };

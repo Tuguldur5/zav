@@ -1,0 +1,255 @@
+{
+  "pages": {
+    "/api/health/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/health/route.js"
+    ],
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/not-found": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/not-found.js"
+    ],
+    "/site/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/layout.js"
+    ],
+    "/site/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/page.js"
+    ],
+    "/worker/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/layout.js"
+    ],
+    "/worker/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/page.js"
+    ],
+    "/site/register/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/register/page.js"
+    ],
+    "/site/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/login/page.js"
+    ],
+    "/staff/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/layout.js"
+    ],
+    "/staff/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/page.js"
+    ],
+    "/site/terms/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/terms/page.js"
+    ],
+    "/site/privacy/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/privacy/page.js"
+    ],
+    "/site/help/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/help/page.js"
+    ],
+    "/site/manifest.webmanifest/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/manifest.webmanifest/route.js"
+    ],
+    "/robots.txt/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/robots.txt/route.js"
+    ],
+    "/worker/register/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/register/page.js"
+    ],
+    "/worker/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/login/page.js"
+    ],
+    "/worker/terms/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/terms/page.js"
+    ],
+    "/worker/privacy/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/privacy/page.js"
+    ],
+    "/worker/help/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/help/page.js"
+    ],
+    "/worker/manifest.webmanifest/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/manifest.webmanifest/route.js"
+    ],
+    "/_not-found/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/_not-found/page.js"
+    ],
+    "/staff/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/login/page.js"
+    ],
+    "/staff/join/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/join/page.js"
+    ],
+    "/staff/(admin)/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/(admin)/layout.js"
+    ],
+    "/staff/(admin)/today/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/(admin)/today/page.js"
+    ],
+    "/staff/security/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/security/page.js"
+    ],
+    "/staff/(super)/super/audit/export/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/(super)/super/audit/export/route.js"
+    ],
+    "/site/reset-password/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/reset-password/page.js"
+    ],
+    "/site/auth/confirm/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/auth/confirm/route.js"
+    ],
+    "/site/forgot-password/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/forgot-password/page.js"
+    ],
+    "/worker/reset-password/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/reset-password/page.js"
+    ],
+    "/worker/auth/confirm/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/auth/confirm/route.js"
+    ],
+    "/worker/forgot-password/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/forgot-password/page.js"
+    ],
+    "/staff/reset-password/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/reset-password/page.js"
+    ],
+    "/staff/auth/confirm/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/auth/confirm/route.js"
+    ],
+    "/staff/forgot-password/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/staff/forgot-password/page.js"
+    ],
+    "/site/kit/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/kit/page.js"
+    ],
+    "/site/c/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/c/layout.js"
+    ],
+    "/site/c/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/c/page.js"
+    ],
+    "/site/c/new/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/c/new/page.js"
+    ],
+    "/site/c/me/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/c/me/page.js"
+    ],
+    "/worker/(app)/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/(app)/layout.js"
+    ],
+    "/worker/(app)/home/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/(app)/home/page.js"
+    ],
+    "/worker/(app)/calendar/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/(app)/calendar/page.js"
+    ],
+    "/worker/(app)/offers/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/(app)/offers/page.js"
+    ],
+    "/worker/(app)/me/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/worker/(app)/me/page.js"
+    ],
+    "/site/kit/staff/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/kit/staff/page.js"
+    ],
+    "/site/kit/shell/[variant]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/site/kit/shell/[variant]/page.js"
+    ]
+  }
+}

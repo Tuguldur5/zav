@@ -48,38 +48,49 @@ function hint(error) {
         "Supabase → Project settings → Database → Connect (Session pooler).",
     );
   }
+  if (code === "28P01") {
+    console.error(
+      "\nThe database password was rejected (28P01). Update DATABASE_POOLER_URL in " +
+        ".env.local with the current Session pooler string; scripts cannot run without it.",
+    );
+  }
   console.error(`Connection failed (${code || "unknown"}). Check your network and credentials.`);
 }
 
+/**
+ * One fresh client per attempt: a pg client cannot be reconnected after a
+ * failed connect, so the old retry loop hid the real error behind
+ * "Client has already been connected".
+ */
 export async function withDb(fn) {
   const connectionString = getConnectionString();
   const local = /localhost|127\.0\.0\.1/.test(connectionString);
-  const client = new pg.Client({
-    connectionString,
-    ssl: local ? false : { rejectUnauthorized: false },
-    connectionTimeoutMillis: 15000,
-  });
+  const retryable = ["ENETUNREACH", "ETIMEDOUT", "EHOSTUNREACH", "ECONNREFUSED"];
+  let lastError;
 
-  let attempt = 0;
-  for (;;) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const client = new pg.Client({
+      connectionString,
+      ssl: local ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 15000,
+    });
     try {
       await client.connect();
-      break;
-    } catch (error) {
-      attempt += 1;
-      if (attempt >= 3) {
-        hint(error);
-        throw error;
+      try {
+        return await fn(client);
+      } finally {
+        await client.end().catch(() => {});
       }
+    } catch (error) {
+      lastError = error;
+      await client.end().catch(() => {});
+      if (!retryable.includes(error.code) || attempt === 3) break;
       await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
     }
   }
 
-  try {
-    return await fn(client);
-  } finally {
-    await client.end().catch(() => {});
-  }
+  hint(lastError);
+  throw lastError;
 }
 
 /**

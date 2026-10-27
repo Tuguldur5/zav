@@ -1,6 +1,6 @@
 import { LifeBuoy } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle } from "@/components/staff";
+import { PageHeader, PageTabs, StaffNote, settingsTabs } from "@/components/staff";
 import { SettingsForm } from "./SettingsForm";
 
 export const dynamic = "force-dynamic";
@@ -14,11 +14,12 @@ export default async function SuperSettingsPage() {
 
   return (
     <>
-      <PageTitle title="Тохиргоо" subtitle="Тусламжийн мэдээлэл — бүх хэрэглэгчийн «Тусламж» товч дээр харагдана" />
-      <p className="staff-banner">
+      <PageHeader title="Тохиргоо" subtitle="Тусламжийн мэдээлэл — бүх хэрэглэгчийн «Тусламж» товч дээр харагдана" />
+      <PageTabs label="Тохиргооны хэсэг" active="/super/settings" tabs={settingsTabs} />
+      <StaffNote>
         <LifeBuoy aria-hidden className="size-4 shrink-0" />
         Энэ утас бүх хэрэглэгчийн «Тусламж» товч дээр харагдана.
-      </p>
+      </StaffNote>
       <SettingsForm initialPhone={phone} initialText={text} />
     </>
   );

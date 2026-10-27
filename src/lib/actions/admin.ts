@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { mapRpcError } from "@/lib/auth-errors";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -15,9 +15,7 @@ function revalidateOperational() {
 
 async function callRpc(name: string, params: Record<string, unknown>): Promise<ActionResult> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Нэвтрэх эрхгүй" };
 
   const { error } = await supabase.rpc(name, params);
@@ -92,9 +90,7 @@ export async function updateWorkerCatalogAction(
 
 export async function markAllNotificationsReadAction(): Promise<ActionResult> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Нэвтрэх эрхгүй" };
 
   const { error } = await supabase

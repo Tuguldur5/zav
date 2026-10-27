@@ -1,8 +1,5 @@
-import Link from "next/link";
-import { UserPlus } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { PageTitle } from "@/components/staff";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader, StaffEmpty } from "@/components/staff";
 import { IntakeClient } from "./IntakeClient";
 import type { District, Profile, Skill } from "@/lib/types";
 
@@ -23,26 +20,21 @@ type AdminOption = { id: string; full_name: string; load: number };
 export default async function IntakePage() {
   const { supabase } = await requireRole(["super_admin"]);
 
-  const [detailsResult, directoryResult, skillResult, districtResult] = await Promise.all([
+  const [detailsResult, loadsResult, skillResult, districtResult] = await Promise.all([
     supabase.from("worker_details").select("*").eq("intake_status", "new"),
-    supabase.rpc("staff_directory"),
+    supabase.rpc("admin_loads"),
     supabase.from("skills").select("*"),
     supabase.from("districts").select("*"),
   ]);
 
   const details = (detailsResult.data as Array<{ worker_id: string }> | null) ?? [];
-  const directory =
-    (directoryResult.data as Array<{
-      id: string;
-      full_name: string;
-      load: number;
-      role: string;
-      status: string;
-    }> | null) ?? [];
-  const admins: AdminOption[] = directory
-    .filter((row) => row.role === "admin" && row.status === "active")
-    .map((row) => ({ id: row.id, full_name: row.full_name, load: row.load }));
-  const adminNameById = new Map(directory.map((row) => [row.id, row.full_name]));
+  const loads = (loadsResult.data as AdminOption[] | null) ?? [];
+  const admins: AdminOption[] = loads.map((row) => ({
+    id: row.id,
+    full_name: row.full_name,
+    load: row.load,
+  }));
+  const adminNameById = new Map(loads.map((row) => [row.id, row.full_name]));
   const skills = (skillResult.data as Skill[] | null) ?? [];
   const districts = (districtResult.data as District[] | null) ?? [];
   const districtById = new Map(districts.map((row) => [row.id, row.name]));
@@ -89,30 +81,15 @@ export default async function IntakePage() {
 
   return (
     <>
-      <PageTitle
-        title="Шинэ ажил хийгчид"
-        emoji="✨"
-        subtitle={`Хуваариалаагүй ${rows.length} — мэргэжил, дүүргээр баталгаажуулаад админд хуваарилна уу. Санал нь хамгийн бага ачаалалтай, хүрээ таарсан админ байна.`}
-        actions={
-          <Link
-            href="/super/admins"
-            className="press flex min-h-[var(--control-h)] items-center rounded-[10px] border border-[color:var(--control-line)] px-4 text-[0.9em] font-medium"
-          >
-            Админууд
-          </Link>
-        }
+      <PageHeader
+        title="Шинэ ажилчид"
+        subtitle={`Хуваарилаагүй ${rows.length}. Санал нь хамгийн бага ачаалалтай, хүрээ таарсан админ байна.`}
       />
 
       {rows.length === 0 ? (
-        <EmptyState
-          icon={UserPlus}
-          title="Хуваариалаагүй шинэ ажилтан байхгүй"
+        <StaffEmpty
+          title="Хуваарилаагүй шинэ ажилтан байхгүй"
           body="Шинэ ажилтан бүртгүүлмэгц энд харагдана."
-          action={
-            <Link href="/super/admins" className="text-[0.9em] font-medium text-primary underline">
-              Админуудын тохиргоо
-            </Link>
-          }
         />
       ) : (
         <IntakeClient rows={rows} admins={admins} />

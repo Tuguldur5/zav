@@ -1,10 +1,11 @@
-# Reverse proxy for Зав байна — both hosts, one app.
+# Reverse proxy for Зав байна — three hosts, one app.
 # The app only listens on 127.0.0.1:3000, so these are the only public names.
 
 {
 	admin off
 }
 
+# Customer site: landing, auth, customer jobs, legal pages.
 zav.baina.mn {
 	# Overwrite the forwarded headers: the app reads X-Forwarded-Host to decide
 	# which host was requested. Never let a client value pass through.
@@ -28,6 +29,29 @@ zav.baina.mn {
 	}
 }
 
+# Worker app: own login, home, calendar, offers, profile.
+ajil.zav.baina.mn {
+	reverse_proxy 127.0.0.1:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	header {
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	log {
+		output file /var/log/caddy/zav-baina-ajil.log
+	}
+}
+
+# Staff app: admin + super admin. Never indexed, never linked from the site.
 admin.zav.baina.mn {
 	reverse_proxy 127.0.0.1:3000 {
 		header_up Host {host}
