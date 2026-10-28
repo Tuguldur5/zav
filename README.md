@@ -170,7 +170,8 @@ cd /opt/zav
 sudo -u zav cp .env.example .env.local
 sudo -u zav chmod 600 .env.local
 sudo -u zav editor .env.local
-sudo -u zav npm ci && sudo -u zav npm run build
+sudo -u zav npm ci && sudo -u zav NEXT_OUTPUT=standalone npm run build
+# NEXT_OUTPUT=standalone нь .next/standalone гаралтыг үүсгэнэ (Docker мөн адил).
 # standalone горимд статик файлуудыг server.js-ийн хажууд хуулна
 sudo -u zav cp -r .next/static .next/standalone/.next/
 sudo -u zav cp -r public .next/standalone/
@@ -313,8 +314,9 @@ DATABASE_URL=postgresql://...
 
 ## 8. Vercel-д байрлуулах
 
-Одоо байгаа Docker болон VPS тохиргоог өөрчлөхгүй. Vercel-ийн build орчинд
-`output: "standalone"`-ийг автоматаар алгасах тул тусгай `vercel.json` хэрэггүй.
+Одоо байгаа Docker болон VPS тохиргоог өөрчлөхгүй. `output: "standalone"` нь зөвхөн
+`NEXT_OUTPUT=standalone` үед асаалттай (Docker болон VPS дээр тийм), Vercel дээр
+унтраалттай тул тусгай `vercel.json` хэрэггүй.
 
 1. GitHub репозиторыг Vercel-д импортолж, **Node.js 22.x** сонгоно.
 2. Project Settings → Environment Variables хэсэгт **Production** орчинд:

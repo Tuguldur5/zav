@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { hostKind, normalizeHost } from "@/lib/hosts";
+import { PERF_LOG, perfLog } from "@/lib/perf";
 import { SUPABASE_URL } from "@/lib/supabase/config";
 import {
   clearSupabaseCookies,
@@ -109,6 +110,22 @@ const PREFIX = {
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const startedAt = PERF_LOG ? Date.now() : 0;
+  let authMs: number | undefined;
+  // One line per request when PERF_LOG=1. Early exits are logged too, so a slow
+  // or hanging path is always visible in the server console.
+  const finish = (response: NextResponse): NextResponse => {
+    perfLog({
+      scope: "middleware",
+      path: pathname,
+      method: req.method,
+      ms: Date.now() - startedAt,
+      auth_ms: authMs,
+      status: response.status,
+    });
+    return response;
+  };
+
   const host = normalizeHost(req.headers.get("x-forwarded-host") ?? req.headers.get("host"));
   const kind = hostKind(host);
 
@@ -122,7 +139,7 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  if (kind === "unknown") return notFound(headers);
+  if (kind === "unknown") return finish(notFound(headers));
 
   // The internal folders are never addressable from the outside.
   if (
@@ -133,7 +150,7 @@ export async function middleware(req: NextRequest) {
     pathname === "/staff" ||
     pathname.startsWith("/staff/")
   ) {
-    return notFound(headers);
+    return finish(notFound(headers));
   }
 
   // Every host serves its own login, recovery and confirm pages, so the email
@@ -144,15 +161,15 @@ export async function middleware(req: NextRequest) {
     pathname !== "/auth/callback" &&
     pathname !== "/auth/confirm"
   ) {
-    return notFound(headers);
+    return finish(notFound(headers));
   }
   if (kind === "staff" && (pathname === "/__kit" || pathname.startsWith("/__kit/"))) {
-    return notFound(headers);
+    return finish(notFound(headers));
   }
   if (process.env.NODE_ENV === "production" && pathname.startsWith("/__kit")) {
-    return notFound(headers);
+    return finish(notFound(headers));
   }
-  if (pathname === "/kit" || pathname.startsWith("/kit/")) return notFound(headers);
+  if (pathname === "/kit" || pathname.startsWith("/kit/")) return finish(notFound(headers));
 
   // Host-neutral endpoints and root files. robots.txt and sitemap.xml live at
   // the app root and read the Host header themselves (one policy per host), so
@@ -165,9 +182,9 @@ export async function middleware(req: NextRequest) {
   ) {
     const res = NextResponse.next();
     headers.forEach((value, key) => res.headers.set(key, value));
-    return res;
+    return finish(res);
   }
-  if (pathname.startsWith("/api/")) return notFound(headers);
+  if (pathname.startsWith("/api/")) return finish(notFound(headers));
 
   const ip = clientIp(req);
   if (
@@ -175,20 +192,22 @@ export async function middleware(req: NextRequest) {
     POST_LIMIT_PATHS.some((path) => pathname === path || pathname.startsWith(path + "/")) &&
     rateLimited(`${ip}:post:${pathname}`, POST_LIMIT)
   ) {
-    return tooManyRequests(headers);
+    return finish(tooManyRequests(headers));
   }
   if (
     req.method === "GET" &&
     LINK_LIMIT_PATHS.some((path) => pathname === path) &&
     rateLimited(`${ip}:link:${pathname}`, LINK_LIMIT)
   ) {
-    return tooManyRequests(headers);
+    return finish(tooManyRequests(headers));
   }
 
   // Refresh the Supabase session and collect cookies to set on the response.
   // Cookies stay host-only: three hosts, three independent sessions. A stale
   // cookie is cleared and the visitor is treated as logged out.
+  const authStartedAt = PERF_LOG ? Date.now() : 0;
   const session = await readSession(req);
+  if (PERF_LOG) authMs = Date.now() - authStartedAt;
   let hasUser = Boolean(session.user);
   let signedOutForIdle = false;
 
@@ -251,7 +270,7 @@ export async function middleware(req: NextRequest) {
   }
 
   headers.forEach((value, key) => res.headers.set(key, value));
-  return res;
+  return finish(res);
 }
 
 /**

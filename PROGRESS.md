@@ -1,5 +1,122 @@
 # Зав байна — Progress
 
+## SESSION 10 (2026-10-27) — FIX-1 Q0: measure first (no behaviour change)
+
+**Done: Q0 (verified twice, second time on a fresh build with no source change).
+Next: Q1 — remove avoidable network work on the public pages.**
+
+### Added
+
+- `scripts/perf-routes.mjs` (`npm run perf`): against `http://127.0.0.1:3000`, one
+  warm-up request per route is discarded, then 6 anonymous GETs with `Host` and
+  `X-Forwarded-Host` from `NEXT_PUBLIC_SITE_HOST` / `_WORKER_` / `_STAFF_` in
+  `.env.local`. Prints median and p95 TTFB and total, status and a verdict;
+  budget median < 400 ms and p95 < 1000 ms on both TTFB and total; exit 1 on
+  FAIL. Only host names are printed, never other env values.
+- `src/lib/perf.ts` + `PERF_LOG=1` logs: one `[perf]` line per middleware request
+  (`path`, `method`, `ms`, `auth_ms`, `status`; early 404/429 exits included) and
+  one line per server-side Supabase call (`scope=server kind=auth|db path=<pathname>
+  ms=<n> status=<n>`). No cookies, ids, emails or query strings are logged.
+  Example: `[perf] scope=middleware path=/ method=GET ms=2 auth_ms=2 status=200`,
+  `[perf] scope=server kind=db path=/rest/v1/skills ms=113 status=200`.
+- `next.config.ts`: `output` is `standalone` only when `NEXT_OUTPUT=standalone`
+  (the Dockerfile build stage sets it). `npm start` no longer prints the
+  standalone warning; `npm run start:standalone` still works after such a build.
+  README 7.2 and 8 updated for the opt-in flag.
+- `eslint.config.mjs`: ignore the leftover `.next-slots-check/**` verification
+  build dir. `npm run lint` was failing on 8,956 generated-file findings before
+  any source change; with the ignore it reports only the 2 pre-existing unused
+  `eslint-disable` warnings in `src/lib/auth.ts`.
+
+### Baseline — production build, `next start`, PERF_LOG unset (Node 20.18)
+
+| route | host | status | TTFB med | TTFB p95 | total med | total p95 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `/` | zav.localhost:3000 | 200 | 304 | 368 | 331 | 400 |
+| `/login` | zav.localhost:3000 | 200 | 45 | 61 | 52 | 67 |
+| `/register` | zav.localhost:3000 | 200 | 43 | 51 | 51 | 60 |
+| `/forgot-password` | zav.localhost:3000 | 200 | 39 | 45 | 48 | 53 |
+| `/terms` | zav.localhost:3000 | 200 | 186 | 300 | 199 | 319 |
+| `/` | ajil.zav.localhost:3000 | 200 | 274 | 346 | 294 | 361 |
+| `/login` | ajil.zav.localhost:3000 | 200 | 47 | 51 | 57 | 62 |
+| `/register` | ajil.zav.localhost:3000 | 200 | 256 | 260 | 262 | 266 |
+| `/forgot-password` | ajil.zav.localhost:3000 | 200 | 38 | 42 | 43 | 49 |
+| `/login` | admin.zav.localhost:3000 | 200 | 40 | 46 | 46 | 51 |
+
+Verdict of this run: **PASS**, but the margin is thin. Repeated runs on the same
+build gave customer `/` 405/583/437 ms (FAIL), 303 ms and 304 ms, and worker `/`
+377, 369 and 274 ms, so a single run is not a verdict — the landings sit on the
+400 ms budget. Staff `/login` and the form-only pages are stable at 38–57 ms.
+
+### Diagnosis (5 lines)
+
+1. Each landing makes 5 Supabase round-trips: `skills` answers **HTTP 400**
+   (code 42703 — `skills.sensitive` does not exist, so `db/09_skills.sql` is not
+   applied), then the legacy `skills` query runs sequentially, plus `districts`,
+   `settings/support_phone` and `settings/support_text`.
+2. Those calls cost 100–370 ms each from this machine (PERF_LOG), and nothing is
+   cached: that is essentially the whole 274–331 ms of both landings.
+3. Middleware is not the bottleneck — 1–8 ms per anonymous request including
+   `auth_ms` — but it still builds a cookie-bound Supabase client on every
+   request; `getUser()` skips the network when no `sb-` cookie is present.
+4. Worker `/register` (256 ms) fetches districts + public skills (3 calls with the
+   fallback), while customer `/register` (43 ms) does not; `/terms` spends
+   145–186 ms on `getSupportPhone()` alone.
+5. Routes without data access are already inside budget (`/login` 45–47 ms,
+   `/forgot-password` 38–43 ms, staff `/login` 40 ms): a cached catalog/settings
+   layer (Q1) is the lever, not middleware tuning.
+
+### Checks (Q0)
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` | PASS |
+| `npm run lint` | PASS (2 pre-existing warnings in `src/lib/auth.ts`) |
+| `npm run build` | PASS (Next 15.5.28) |
+| `npm start` standalone warning | GONE (`NEXT_OUTPUT=standalone` opt-in) |
+| `npm run perf` | 1 FAIL then 2 PASS runs — see variance note above |
+
+No UI change in this phase. Staff screens untouched.
+
+### Q0 re-check on a fresh build (second pass, no source change)
+
+Same tree, new `npm run build` and one `npm start` (port 3000, no other node
+process). `npx tsc --noEmit` and `npm run lint` PASS again (same 2 warnings).
+Two `npm run perf` runs, both **PASS**:
+
+| route | host | status | TTFB med | TTFB p95 | total med | total p95 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `/` | zav.localhost:3000 | 200 | 282 / 280 | 327 / 440 | 302 / 297 | 344 / 457 |
+| `/login` | zav.localhost:3000 | 200 | 27 / 38 | 47 / 39 | 31 / 43 | 52 / 44 |
+| `/register` | zav.localhost:3000 | 200 | 28 / 33 | 41 / 38 | 33 / 38 | 52 / 43 |
+| `/forgot-password` | zav.localhost:3000 | 200 | 26 / 28 | 45 / 37 | 30 / 34 | 51 / 41 |
+| `/terms` | zav.localhost:3000 | 200 | 138 / 145 | 164 / 155 | 144 / 156 | 172 / 168 |
+| `/` | ajil.zav.localhost:3000 | 200 | 343 / 276 | 655 / 281 | 355 / 293 | 667 / 305 |
+| `/login` | ajil.zav.localhost:3000 | 200 | 22 / 37 | 31 / 45 | 25 / 42 | 35 / 50 |
+| `/register` | ajil.zav.localhost:3000 | 200 | 248 / 258 | 261 / 269 | 258 / 265 | 270 / 274 |
+| `/forgot-password` | ajil.zav.localhost:3000 | 200 | 23 / 33 | 37 / 37 | 29 / 37 | 42 / 42 |
+| `/login` | admin.zav.localhost:3000 | 200 | 33 / 49 | 43 / 59 | 38 / 57 | 49 / 68 |
+
+(Values are `run 1 / run 2`.) The picture is unchanged: the landings and worker
+`/register` are inside budget but only just, and one worker `/` p95 hit 655/667 ms.
+Nothing in this pass changed behaviour, so the Q1 targets stand.
+
+`PERF_LOG=1` spot check on the same build (one anonymous customer `/` request):
+
+```
+[perf] scope=middleware path=/ method=GET ms=27 auth_ms=19 status=200
+[perf] scope=server kind=db path=/rest/v1/districts ms=297 status=200
+[perf] scope=server kind=db path=/rest/v1/settings ms=300 status=200
+[perf] scope=server kind=db path=/rest/v1/skills ms=499 status=400
+[perf] scope=server kind=db path=/rest/v1/settings ms=315 status=200
+[perf] scope=server kind=db path=/rest/v1/skills ms=199 status=200
+```
+
+This confirms diagnosis 1–2 line by line: the first `skills` query still fails
+with 400 (`skills.sensitive` missing), the legacy retry is sequential, and the
+five calls dominate the response; middleware is 27 ms of 2.37 s. `/terms` on the
+same build logged a 4 ms middleware line and one 200 ms `settings` call.
+
 ## SESSION 9 (2026-10-26) — Slots redesign
 
 ### D0 — Detect, brief, cleanup

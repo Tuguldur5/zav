@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Vercel builds its own function output; standalone remains for VPS/Docker.
-  output: process.env.VERCEL ? undefined : "standalone",
+  // Vercel builds its own function output. Docker/VPS builds opt in with
+  // NEXT_OUTPUT=standalone (Dockerfile sets it); `next start` stays warning-free.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   poweredByHeader: false,
   reactStrictMode: true,
   // Verification runs use their own build dir so a dev server that already

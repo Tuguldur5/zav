@@ -26,6 +26,7 @@
     "contrast": "node scripts/check-contrast.mjs",
     "smoke": "node scripts/smoke.mjs",
     "layout": "node scripts/check-layout.mjs",
+    "perf": "node scripts/perf-routes.mjs",
     "backdrop": "node scripts/check-backdrop.mjs",
     "push:keys": "node scripts/gen-vapid.mjs",
     "push:role": "node scripts/create-push-role.mjs",

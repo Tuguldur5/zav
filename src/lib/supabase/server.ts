@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { User } from "@supabase/supabase-js";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import { isStaleAuthError, isSupabaseCookie } from "./errors";
+import { perfFetch } from "@/lib/perf";
 
 /**
  * Server-side Supabase client. Cookies are always host-only: we strip any
@@ -13,6 +14,8 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    // PERF_LOG=1: one timed line per Supabase call (auth vs db). No-op otherwise.
+    global: { fetch: perfFetch("server") },
     cookies: {
       getAll() {
         return cookieStore.getAll();

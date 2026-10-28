@@ -13,8 +13,9 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
-    // Verification build dir and scratch scripts/screenshots:
+    // Verification build dirs and scratch scripts/screenshots:
     ".next-verify/**",
+    ".next-slots-check/**",
     "tmp/**",
     "out/**",
     "build/**",
