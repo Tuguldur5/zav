@@ -17,7 +17,7 @@ export default async function SuperCatalogPage() {
 
   return (
     <>
-      <PageHeader title="Тохиргоо" subtitle={`Каталог · мэргэжил ${skills.length} · дүүрэг ${districts.length}`} />
+      <PageHeader subtitle={`Каталог · мэргэжил ${skills.length} · дүүрэг ${districts.length}`} />
       <PageTabs label="Тохиргооны хэсэг" active="/super/catalog" tabs={settingsTabs} />
       <StaffNote>
         <Package aria-hidden className="size-4 shrink-0" />

@@ -35,15 +35,14 @@ export function StaffKitDemo() {
       {(["admin", "super"] as const).map((tone) => (
         <section
           key={tone}
-          className="staff-theme rounded-xl border border-[color:var(--st-border)] p-4"
+          className="staff-theme rounded-xl border border-[color:var(--st-line)] p-4"
           data-staff-tone={tone}
         >
           <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-[color:var(--st-muted)]">
-            {tone === "admin" ? "Админ тон — #0F766E" : "Супер тон — #134E4A"}
+            {tone === "admin" ? "Админ тон — индиго #1B2BD6" : "Супер тон — виолет #5B3DF5"}
           </p>
 
           <PageHeader
-            title="Өнөөдөр"
             subtitle="Жишээ дэд гарчиг — нэг мөрөнд"
             actions={
               <button type="button" className="st-btn" data-variant="primary">
@@ -58,10 +57,10 @@ export function StaffKitDemo() {
 
           <div className="mt-4">
             <StatTiles>
-              <StatTile label="Шинэ зар" value={12} icon={Briefcase} />
-              <StatTile label="Баталгаажуулах" value={3} icon={CalendarCheck} attention />
-              <StatTile label="Ажилчид" value={28} icon={Users} />
-              <StatTile label="Өнөөдрийн ажил" value={7} icon={CalendarCheck} />
+              <StatTile label="Шинэ зар" value={12} icon={Briefcase} tint="mint" />
+              <StatTile label="Баталгаажуулах" value={3} icon={CalendarCheck} tint="sand" />
+              <StatTile label="Ажилчид" value={28} icon={Users} tint="sky" />
+              <StatTile label="Өнөөдрийн ажил" value={7} icon={CalendarCheck} tint="rose" />
             </StatTiles>
           </div>
 

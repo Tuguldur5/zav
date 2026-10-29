@@ -75,7 +75,6 @@ export default async function AdminJobsPage({
   return (
     <>
       <PageHeader
-        title="Зарууд"
         subtitle={tab === "new" ? "Шинэ зарын пул — эхлээд авна уу" : `Нийт ${jobs.length} зар`}
       />
 

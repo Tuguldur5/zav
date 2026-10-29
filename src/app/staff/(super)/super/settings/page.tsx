@@ -14,7 +14,7 @@ export default async function SuperSettingsPage() {
 
   return (
     <>
-      <PageHeader title="Тохиргоо" subtitle="Тусламжийн мэдээлэл — бүх хэрэглэгчийн «Тусламж» товч дээр харагдана" />
+      <PageHeader subtitle="Тусламжийн мэдээлэл — бүх хэрэглэгчийн «Тусламж» товч дээр харагдана" />
       <PageTabs label="Тохиргооны хэсэг" active="/super/settings" tabs={settingsTabs} />
       <StaffNote>
         <LifeBuoy aria-hidden className="size-4 shrink-0" />

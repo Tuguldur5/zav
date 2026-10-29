@@ -39,7 +39,7 @@ export default async function StaffProfilePage() {
 
   return (
     <>
-      <PageHeader title="Профайл" subtitle="Зөвхөн таны өөрийн мэдээлэл" />
+      <PageHeader subtitle="Зөвхөн таны өөрийн мэдээлэл" />
 
       <div className="flex flex-wrap items-center gap-3">
         <span className="st-avatar !size-12 !text-[16px]" aria-hidden>

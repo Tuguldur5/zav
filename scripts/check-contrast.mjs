@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
+/** The staff palette lives in its own stylesheet, imported after globals.css. */
+const staffCss = readFileSync(new URL("../src/styles/staff.css", import.meta.url), "utf8");
 
 /** Every raw custom-property value, hex or `var(--alias)`. */
 function rawDeclarations(source) {
@@ -35,21 +37,17 @@ function palette(source) {
   return out;
 }
 
-/** `:root` is the public palette; later blocks (staff) redefine some names. */
-function block(startMarker) {
-  const start = css.indexOf(startMarker);
+/** `:root` is the public palette; the staff sheet redefines the staff names. */
+function block(startMarker, source = css) {
+  const start = source.indexOf(startMarker);
   if (start < 0) return {};
-  const open = css.indexOf("{", start);
-  const end = css.indexOf("\n}", open);
-  return palette(css.slice(open, end));
+  const open = source.indexOf("{", start);
+  const end = source.indexOf("\n}", open);
+  return palette(source.slice(open, end));
 }
 
 const vars = block(":root {");
 vars.white = "#FFFFFF";
-
-const staff = block(".staff-theme {");
-// The super tone only redefines the teal accent family.
-const staffSuper = { ...staff, ...block('.staff-theme[data-staff-tone="super"]') };
 
 function channels(hex) {
   const value = hex.replace("#", "");
@@ -114,52 +112,65 @@ function run(pairs, kind) {
 run(textPairs, "Public");
 
 /**
- * Staff v2: white page, 1px borders, teal only for actions and active state.
- * Each pair carries its own minimum from the acceptance table.
+ * Staff: operations dashboard in the public site's palette. The palette is
+ * checked four times because <html> carries both a theme (light/dark) and a
+ * tone (admin/super). Text pairs need 4.5:1, tile text 7:1 and borders/icons
+ * 3:1.
  */
-const staffPairs = () => [
-  ["st-ink", "st-surface", "ink on white", 7],
-  ["st-muted", "st-surface", "muted on white", 4.5],
-  ["st-muted", "st-subtle", "muted on subtle", 4.5],
-  ["st-on-accent", "st-accent", "white on accent", 4.5],
-  ["st-accent", "st-surface", "accent text on white", 4.5],
-  ["st-accent", "st-accent-soft", "accent text on accent-soft", 4.5],
-  ["st-accent-ink", "st-accent-soft", "accent-ink on accent-soft", 7],
-  ["st-accent-ink", "st-accent-soft-2", "accent-ink on accent-soft-2", 7],
+const staffLight = block(".staff-theme {", staffCss);
+const staffSuperTone = block('.staff-theme[data-staff-tone="super"]', staffCss);
+const staffDark = block('.staff-theme[data-theme="dark"]', staffCss);
+
+const staffThemes = [
+  ["light / admin", { ...staffLight }],
+  ["light / super", { ...staffLight, ...staffSuperTone }],
+  ["dark / admin", { ...staffLight, ...staffDark }],
+  ["dark / super", { ...staffLight, ...staffSuperTone, ...staffDark }],
+];
+
+/** [foreground, background, label, minimum]. */
+const staffPairs = [
+  ["st-ink", "st-bg", "ink on page", 7],
+  ["st-ink", "st-surface", "ink on surface", 7],
+  ["st-ink", "st-sidebar", "ink on sidebar", 7],
+  ["st-muted", "st-bg", "muted on page", 4.5],
+  ["st-muted", "st-surface", "muted on surface", 4.5],
+  ["st-muted", "st-sidebar", "muted on sidebar", 4.5],
+  ["st-accent-ink", "st-surface", "accent text on surface", 4.5],
+  ["st-accent-ink", "st-bg", "accent text on page", 4.5],
+  ["st-accent-ink", "st-accent-soft", "accent ink on accent soft", 7],
+  ["st-on-accent", "st-accent", "on-accent on accent", 4.5],
+  ["st-on-accent", "st-accent-hover", "on-accent on accent hover", 4.5],
+  ["st-on-btn", "st-btn", "on-btn on button", 7],
+  ["st-on-btn", "st-btn-hover", "on-btn on button hover", 7],
+  ["st-on-danger", "st-danger", "on-danger on danger", 4.5],
   ["st-ok", "st-ok-bg", "success pill", 4.5],
   ["st-warn", "st-warn-bg", "warning pill", 4.5],
   ["st-err", "st-err-bg", "error pill", 4.5],
-  ["st-outline", "st-surface", "outline on white", 3],
+  ["st-outline", "st-surface", "outline on surface", 3],
+  ["st-ink", "st-tint-lime", "ink on lime tile", 7],
+  ["st-ink", "st-tint-mint", "ink on mint tile", 7],
+  ["st-ink", "st-tint-rose", "ink on rose tile", 7],
+  ["st-ink", "st-tint-sky", "ink on sky tile", 7],
+  ["st-ink", "st-tint-sand", "ink on sand tile", 7],
+  ["st-accent-ink", "st-tint-lime", "accent ink on lime tile", 7],
 ];
 
-console.log("\nStaff token pairs — admin tone");
-for (const [fgKey, bgKey, label, minimum] of staffPairs()) {
-  const fg = staff[fgKey];
-  const bg = staff[bgKey];
-  if (!fg || !bg) {
-    console.log(`FAIL  ${label}: missing staff token (${fgKey}/${bgKey})`);
-    failed += 1;
-    continue;
+for (const [themeLabel, palette] of staffThemes) {
+  console.log(`\nStaff token pairs — ${themeLabel}`);
+  for (const [fgKey, bgKey, label, minimum] of staffPairs) {
+    const fg = palette[fgKey];
+    const bg = palette[bgKey];
+    if (!fg || !bg) {
+      console.log(`FAIL  ${label}: missing staff token (${fgKey}/${bgKey})`);
+      failed += 1;
+      continue;
+    }
+    const value = ratio(fg, bg);
+    const ok = value >= minimum;
+    if (!ok) failed += 1;
+    console.log(`${ok ? "PASS" : "FAIL"}  ${value.toFixed(2)}:1  ${label} (minimum ${minimum}:1)`);
   }
-  const value = ratio(fg, bg);
-  const ok = value >= minimum;
-  if (!ok) failed += 1;
-  console.log(`${ok ? "PASS" : "FAIL"}  ${value.toFixed(2)}:1  ${label} (minimum ${minimum}:1)`);
-}
-
-console.log("\nStaff token pairs — super tone");
-for (const [fgKey, bgKey, label, minimum] of staffPairs()) {
-  const fg = staffSuper[fgKey];
-  const bg = staffSuper[bgKey];
-  if (!fg || !bg) {
-    console.log(`FAIL  ${label}: missing staff token (${fgKey}/${bgKey})`);
-    failed += 1;
-    continue;
-  }
-  const value = ratio(fg, bg);
-  const ok = value >= minimum;
-  if (!ok) failed += 1;
-  console.log(`${ok ? "PASS" : "FAIL"}  ${value.toFixed(2)}:1  ${label} (minimum ${minimum}:1)`);
 }
 
 const INK = vars.ink;

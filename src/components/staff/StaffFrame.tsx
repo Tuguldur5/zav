@@ -25,7 +25,7 @@ export async function StaffFrame({
   const { supabase, user, profile } = await requireRole(roles);
   const isSuper = profile.role === "super_admin";
 
-  const [statsResult, unreadResult, noticesResult] = await Promise.all([
+  const [statsResult, unreadResult, noticesResult, aal] = await Promise.all([
     supabase.rpc("stats"),
     supabase.from("notifications").select("id", { count: "exact", head: true }).eq("read", false),
     supabase
@@ -33,6 +33,7 @@ export async function StaffFrame({
       .select("id, title, link, read, created_at")
       .order("created_at", { ascending: false })
       .limit(5),
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
   ]);
 
   const stats = (statsResult.data ?? {}) as Stats;
@@ -65,6 +66,8 @@ export async function StaffFrame({
         alerts: unreadResult.count ?? 0,
       }}
       notices={notices}
+      mfaEnabled={aal.data?.nextLevel === "aal2"}
+      lastSignIn={user.last_sign_in_at ? relativeHourLabel(user.last_sign_in_at) : null}
     >
       {children}
     </StaffShell>

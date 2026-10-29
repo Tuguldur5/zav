@@ -82,7 +82,6 @@ export default async function IntakePage() {
   return (
     <>
       <PageHeader
-        title="Шинэ ажилчид"
         subtitle={`Хуваарилаагүй ${rows.length}. Санал нь хамгийн бага ачаалалтай, хүрээ таарсан админ байна.`}
       />
 

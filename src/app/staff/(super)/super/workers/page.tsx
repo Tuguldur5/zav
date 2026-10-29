@@ -76,7 +76,6 @@ export default async function SuperWorkersPage({
   return (
     <>
       <PageHeader
-        title="Ажилчид"
         subtitle={`Нийт ${allRows.length} · хуваарилаагүй ${unassigned} · идэвхгүй ${inactive}`}
         actions={
           <form method="GET" className="st-note w-full sm:w-72">

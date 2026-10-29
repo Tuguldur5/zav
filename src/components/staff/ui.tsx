@@ -1,20 +1,27 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-/** Page title, one muted line and at most two actions (stacked on phones). */
+/**
+ * The page intro: one muted description line and at most two actions.
+ *
+ * The page TITLE is rendered exactly once, by the shell's topbar, so this
+ * component must never repeat it. `record` is the name of the row being opened
+ * on a detail page (a section heading, not a second page title).
+ */
 export function PageHeader({
-  title,
   subtitle,
   actions,
+  record,
 }: {
-  title: string;
   subtitle?: string;
   actions?: ReactNode;
+  record?: string;
 }) {
+  if (!subtitle && !actions && !record) return null;
   return (
     <div className="st-page-head">
       <div className="min-w-0">
-        <h1 className="st-title">{title}</h1>
+        {record ? <h2 className="st-record-title">{record}</h2> : null}
         {subtitle ? <p className="st-subtitle">{subtitle}</p> : null}
       </div>
       {actions ? <div className="st-head-actions">{actions}</div> : null}
@@ -56,31 +63,37 @@ export function Section({
   );
 }
 
-/** White tile, label above a big number. `attention` only when count > 0. */
+/** White or pastel tile, label above a big number. `attention` only when count > 0. */
 export function StatTile({
   label,
   value,
   icon: Icon,
   href,
+  tint,
   attention = false,
 }: {
   label: string;
   value: number | string;
   icon?: LucideIcon;
   href?: string;
+  tint?: "lime" | "mint" | "rose" | "sky" | "sand";
   attention?: boolean;
 }) {
   const body = (
     <>
       <span className="st-tile-label">{label}</span>
       <span className="st-tile-value">{value}</span>
-      {Icon ? <Icon aria-hidden className="st-tile-icon size-4" /> : null}
+      {Icon ? (
+        <span className="st-tile-icon">
+          <Icon aria-hidden className="size-4" />
+        </span>
+      ) : null}
     </>
   );
   return (
-    <div className="st-tile" data-attention={attention ? "" : undefined}>
+    <div className="st-tile" data-attention={attention ? "" : undefined} data-tint={tint}>
       {href ? (
-        <Link href={href} className="flex flex-col gap-1.5">
+        <Link href={href} className="flex flex-col gap-2">
           {body}
         </Link>
       ) : (

@@ -79,7 +79,6 @@ export default async function SuperAdminsPage() {
   return (
     <>
       <PageHeader
-        title="Админууд"
         subtitle={`Идэвхтэй ${loads.length} админ · нийт ${staff.length} ажилтан`}
       />
 

@@ -13,16 +13,28 @@ import {
   WorkerBottomNav,
   WorkerSidebar,
 } from "@/components/app/navs";
-import { Row, Rows, StaffShell, StatTile, StatTiles } from "@/components/staff";
+import {
+  PageHeader as StaffPageHeader,
+  Row,
+  Rows,
+  StaffShell,
+  StatTile,
+  StatTiles,
+} from "@/components/staff";
 
 export type ShellVariant = "public" | "customer" | "worker" | "admin" | "super";
 
 function SampleStaffPage({ superAdmin }: { superAdmin: boolean }) {
   return (
     <>
-      <PageHeader
-        title={superAdmin ? "Самбар" : "Өнөөдөр"}
-        description="Жишээ хуудас — зөвхөн хөгжүүлэлтийн үед харагдана."
+      {/* A real staff page never renders its own title: the shell topbar has
+          it. The preview must show the same anatomy. */}
+      <StaffPageHeader
+        subtitle={
+          superAdmin
+            ? "Жишээ самбар — зөвхөн хөгжүүлэлтийн үед харагдана."
+            : "Жишээ өдөр — зөвхөн хөгжүүлэлтийн үед харагдана."
+        }
         actions={<Button>Жишээ үйлдэл</Button>}
       />
 
@@ -124,6 +136,8 @@ export function ShellPreview({ kind }: { kind: ShellVariant }) {
           time: "Саяхан",
         },
       ]}
+      mfaEnabled
+      lastSignIn="2 цагийн өмнө"
     >
       <SampleStaffPage superAdmin={superAdmin} />
     </StaffShell>

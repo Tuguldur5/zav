@@ -1,5 +1,402 @@
 # Зав байна — Progress
 
+## SESSION 15 (2026-10-29) — STAFF-UI correction: one title per screen, a real accent system
+
+**Done: the T1+T2 correction the owner asked for. Next: T3 (dashboard charts +
+job cards/board).**
+
+Two defects, both fixed at the source rather than hidden with CSS:
+
+1. **Duplicated page title.** The shell topbar rendered the page title from the
+   nav registry AND every page rendered its own `<h1 class="st-title">` via
+   `PageHeader`. `PageHeader` no longer accepts or renders a title; it is now the
+   intro band (description + actions). The topbar title became the page's only
+   `<h1>` (`st-crumb-title`, 18/24). The two detail pages keep the opened record's
+   name as a `record` prop, rendered as an `<h2 class="st-record-title">` inside
+   the band — a record heading, not a second page title.
+2. **Too plain / white-and-grey.** The palette now has ONE deliberate accent
+   (deep indigo `#1B2BD6`, violet `#5B3DF5` for super) that carries the active nav
+   pill (solid + white text + glow), the selected tab (solid pill inside a white
+   segmented rail), primary buttons, links, focus and the section-title bar. The
+   page-intro band, table heads and row hovers are accent-tinted, stat tiles carry
+   tinted icon chips, the brand mark is accent, and the canvas is a cool paper
+   grey. Lime survives as a tile tint only.
+
+Visual-only: no route, query, RPC, action, permission, i18n, form handler or
+label changed; every staff page's props/behaviour are the same minus the
+redundant title prop. `check:visual` still reports data 115 and UI 151 tokens.
+
+### Files
+
+- `src/components/staff/ui.tsx` — `PageHeader({ subtitle, actions, record })`,
+  no `title`/`group`, no `<h1>`.
+- `src/components/staff/StaffShell.tsx` — the topbar title is the page's `<h1>`.
+- 16 staff pages + `src/app/site/kit/staff/StaffKitDemo.tsx` — dropped `title`
+  (and `group`) props; `/jobs/[id]` and `/workers/[id]` pass `record`.
+- `src/styles/staff.css` — new token block (both themes, both tones, accent wash,
+  accent shadow, strong line), accent nav/tabs/buttons/mark/avatar/tab bar,
+  tinted intro band + `.st-record-title`, tinted table heads and row hovers,
+  section-title accent bar, tinted tiles with icon chips, solid-border attention
+  tiles, shared-kit card radius/shadow, one form-control skin (height, border,
+  indigo focus ring) with the borderless search field inside `.st-note`.
+- `src/app/site/kit/shell/[variant]/ShellPreview.tsx` — the staff preview uses the
+  staff `PageHeader`, so the gallery shows the real anatomy (no second title).
+- `scripts/check-staffstyle.mjs` — new palette assertions plus part (d): no page
+  file may render an `<h1>`, the shell must render exactly one `st-crumb-title`
+  `<h1>`, and `PageHeader` may not accept a title.
+- `scripts/check-staff-redesign.mjs` (`npm run check:redesign`) — Playwright proof
+  on the dev gallery: one H1, intro band without a heading, accent-painted nav /
+  tabs / primary button / brand / tile chip, violet super tone, no horizontal
+  overflow at 1440/1280/1024/768/390 and a working phone drawer.
+- `docs/STAFF-UI.md` — sections 1-3 rewritten for the new palette and the
+  single-title rule.
+
+### Verification (fresh `rm -rf .next && npm run build && npm start`)
+
+- `npm run contrast` — PASS (all staff pairs x 4 palettes)
+- `npm run check:staffstyle` — PASS (200, palette in the served CSS, body
+  `rgb(244,246,251)` / ink `rgb(15,18,32)`, no page-level H1, shell has the only
+  H1, `PageHeader` has no title)
+- `npm run check:visual` — PASS (no frozen path; data 115, UI 151 unchanged;
+  no dropped class still in TSX)
+- `npm run check:links` — PASS
+- `npx tsc --noEmit` — clean; `npm run lint` — 0 errors (2 pre-existing warnings
+  in the frozen `src/lib/auth.ts`); `npm run build` — OK
+- `npm run check:redesign` (dev server, `__kit` gallery) — PASS
+- NOT verified: the signed-in pages themselves (no seeded session) and the real
+  reference video (Facebook reel, not downloadable from this environment). The
+  accent/brand direction follows the reel's caption — "payments operations
+  dashboard" — and the repo's existing public palette.
+
+## SESSION 14 (2026-10-29) — STAFF-UI T1+T2: sidebar shell and the component layer
+
+**Done: T1 (shell) and T2 (component layer). Next: T3 — admin `/today`
+(area chart + `NeedsYou` + the daily-counts RPC) and `/jobs` (job cards, board,
+"Дараагийн алхам").**
+
+Visual-only: no route, query, RPC, action, permission or i18n change; every
+change is CSS, the shell's own markup and a display-only template tweak on
+`/today` (same real `stats()` values and the same links).
+
+**New logic** (the only additions, all UI state — `check:visual` UI tokens
+147 -> 151, data tokens unchanged at 115): `StaffShell` gains `collapsed` and
+`drawerOpen` state, the `Ctrl+B` key handler and the localStorage preference
+reader. No data access was added or removed.
+
+### What changed
+
+- `src/styles/staff.css` — rewritten around a left-sidebar dashboard. Tokens
+  unchanged in value (public palette) plus `--st-hover`, `--st-shadow-sm`,
+  `--st-rail-w`, `--st-topbar-h`; the six legacy aliases are gone. New blocks:
+  shell, sidebar (brand, groups, badges, rail, status card), topbar, popovers,
+  page anatomy, buttons, pill tabs, cards (`20px`), tinted tiles, rows, tables,
+  bulk bar, drawer/scrim, bottom tab bar, auth card, breakpoints at 640/768/
+  1024/1280, coarse-pointer and reduced-motion handling.
+- `globals.css` — the 121 legacy `.st-*` rules, the `[data-staff-nav]` block and
+  the old staff focus rule are DELETED (4,449 -> 3,474 lines). No staff
+  selector is left in the public sheet; `staff.css` is imported last and wins.
+- `src/components/staff/StaffShell.tsx` — horizontal header replaced by the
+  sidebar + topbar shell: labelled nav groups, count badges, collapse to the
+  72px rail (`Ctrl+B`, remembered in `localStorage` with try/catch), real status
+  card (MFA level + relative last sign-in), bell popover, profile menu, mobile
+  drawer and bottom tab bar. The drawer keeps the account block the old phone
+  sheet had (Профайл, Аюулгүй байдал, Үсгийн хэмжээ, Гарах), visible below
+  1024px only.
+- `src/components/staff/nav.tsx` — `adminGroups` (Ажил / Харилцаа) and
+  `superGroups` (Хяналт / Ажилтан / Зар / Систем); `/notifications` is now a
+  sidebar destination with the unread badge. Flat `adminNav`/`superNav` kept.
+- `src/components/staff/StaffFrame.tsx` — passes `mfaEnabled` (MFA assurance
+  level) and `lastSignIn` (real `last_sign_in_at`, relative) to the shell.
+- `src/components/staff/ui.tsx` — `PageHeader` takes an optional `group` label;
+  `StatTile` takes `tint` (lime/mint/rose/sky/sand) and renders its icon in a
+  small tile. `src/components/staff/types.ts` — badge union gains `alerts`.
+- `/today` — group label plus the four KPI tiles tinted (same values, same
+  links); `src/app/site/kit/shell/[variant]/ShellPreview.tsx` and
+  `src/app/site/kit/staff/StaffKitDemo.tsx` (dev galleries) updated to the new
+  props/tokens.
+
+### Verification (fresh `rm -rf .next && npm run build && npm start`)
+
+- `npm run contrast` — PASS (all staff pairs x 4 palettes)
+- `npm run check:staffstyle` — PASS (200, four `<html>` attributes, palette in
+  the served CSS, no pre-redesign teal, **no legacy staff token left**, browser
+  body `rgb(245,246,248)` / ink `rgb(14,17,22)`, `data-theme=light`)
+- `npm run check:visual` — PASS (no frozen path changed; data/UI token counts
+  unchanged; every class removed from the sheet was also removed from the TSX)
+- Browser DOM checks (`tmp/check-shell.mjs`, `tmp/check-interact.mjs`) at 1440 /
+  768 / 390px on the dev shell gallery: sidebar 264px sticky with a 1px hairline,
+  topbar 64px, five grouped destinations, active item `rgb(240,251,196)` with
+  ink text, cards `20px` radius white, tinted tile `rgb(220,243,228)`, page
+  title 28px, no horizontal overflow; rail collapses to 72px and survives a
+  reload, `Ctrl+B` expands it, phone drawer opens from "Бусад" and closes on
+  the scrim.
+- Phone drawer account block: `.st-sidebar-account` is `none` at 1440px and
+  `flex` at 390px, with Профайл / Аюулгүй байдал / text size / Гарах (the
+  original `<form action={logoutAction}>` is present, so no data token dropped).
+- `npx tsc --noEmit` clean · `npm run lint` 0 errors (2 pre-existing warnings in
+  frozen `src/lib/auth.ts`) · `npm run check:links` OK · `npm run check:design`
+  OK (109 public files) · `npm run build` OK on a clean `.next`.
+
+### Known gaps / next
+
+- `npm run density` still cannot reach signed-in pages without a seeded session
+  (pre-existing), so page-level density is unverified.
+- `/today` is still the two-column queue, not yet the chart + `NeedsYou` layout;
+  `SearchPanel`, charts, `Board`, dialogs and the dark-theme wipe are T3/T6/T8.
+- A production server is left running on port 3000 from this build.
+
+## SESSION 13 (2026-10-29) — STAFF-UI T0 finished: proof scripts, own stylesheet
+
+**Done: T0. Next: T1 — shell (StaffShell, Sidebar with groups, badges, collapse
+and the real status card, Topbar, ProfileMenu, NotificationsPopover, role-based
+nav, page anatomy). T1 also owns the first `npm run build` and must delete the
+121 legacy staff rules left in `globals.css` plus the six alias tokens, then
+re-run `npm run check:visual` (check (c) starts biting once rules go).**
+
+Palette: unchanged from session 12 — the PUBLIC site colours, per the request
+("use the colours of the main site / main page for the admin section"). The
+warm terracotta set is gone; nothing here reintroduces it.
+
+### Why the earlier restyle did not show (written down, as T0 requires)
+
+1. **The tokens were aliased into the shared kit.** `.staff-theme` set
+   `--primary: var(--primary-container)` style aliases, and the kit Button used
+   the accent, so swapping `--st-accent` changed links but every primary button
+   stayed accent-coloured. Aliases hide which token the screen actually reads;
+   the fix is `--primary: var(--st-btn)` (black) — now in `src/styles/staff.css`.
+2. **One 4,449-line `globals.css` held both audiences.** Staff rules sat between
+   public rules, 121 of them sharing class names with the old design, so editing
+   `className` values changed nothing: the old declarations were still there and
+   still matched. The look now lives in its own sheet, imported LAST.
+3. **Some class strings are composed at runtime** (`className={`${inputClass}
+   min-h-11`}` in CatalogManager, IntakeClient, JobControls), so a restyle that
+   edits the helper string does not always reach the element; complete literal
+   strings or `data-*` attributes are required (rule kept in the brief).
+4. **Verification ran against a long-lived server.** Dev/`npm start` processes
+   from earlier sessions kept serving prebuilt CSS (the port-3000 kill was the
+   only way the new sheet showed up), which reads as "the change did nothing".
+   Every check is now run against a fresh `rm -rf .next && npm run build &&
+   npm start`, and `check:staffstyle` inspects the CSS and computed styles of
+   the RUNNING server, not the source files.
+
+### What changed (T0)
+
+- Git: tag `pre-staff-ui` = `e901469` (the last commit before the redesign); it
+  is the base of `npm run check:visual`. Changes stay in the working tree so the
+  diff against the tag is the redesign itself.
+- `src/styles/staff.css` (new): the whole staff palette moved out of
+  `globals.css` — `.staff-theme` light, `[data-staff-tone="super"]`, `[data-theme="dark"]`,
+  the `html[data-audience="staff"]` background and the coarse-pointer sizes —
+  plus the kit aliases. `globals.css` keeps only `var(--st-*)` USAGES (128) inside
+  the legacy rules that T1/T2 delete; it has no `--st-*` definition left.
+- `src/app/layout.tsx`: imports `../styles/staff.css` after `globals.css` and
+  renders `data-theme="light"` on the staff `<html>` (T8 swaps the value).
+- `scripts/check-contrast.mjs`: reads the staff blocks from `staff.css` (public
+  `:root` stays in `globals.css`), aliases resolve across both files. 24 staff
+  pairs x 4 palettes still PASS.
+- `scripts/check-visual-only.mjs` (`npm run check:visual`): (a) frozen paths
+  unchanged — `db/`, `src/lib/**` except `i18n`, `src/middleware.ts`,
+  `next.config.ts`, `src/app/api/**`, `actions.ts`/`actions/`,
+  `scripts/verify*.mjs`, with the single T3 SQL file allowed by `ALLOW_DB=1`;
+  (b) data tokens (`.rpc(`, `.from(`, `fetch(`, `"use server"`, `redirect(`,
+  `action={`, `router.push(`, `router.replace(`) and UI-logic tokens
+  (`use*` hooks, `on[A-Z]` handlers) must not drop in `src/app/staff/**` and
+  `src/components/staff/**` — increases print WARN and must be listed under
+  "New logic"; (c) a class the base stylesheet defined and the current sheet no
+  longer defines may not stay in the staff TSX (the unstyled-markup trap).
+- `scripts/check-staffstyle.mjs` (`npm run check:staffstyle`): staff host from
+  `NEXT_PUBLIC_STAFF_HOST` via `scripts/env.mjs`; GET `/login` -> 200 and
+  `class="… staff-theme"`, `data-audience="staff"`, `data-theme="light|dark"`,
+  `data-staff-tone="admin|super"`; every linked stylesheet must contain
+  `--st-bg: #F5F6F8`, `--st-accent: #2B44FF`, `--st-r-card` and no pre-redesign
+  teal (`#0f766e`, `#134e4a`, `#f0fdfa`, `#ccfbf1`); Playwright then checks the
+  computed body background/ink and `data-theme` in a real browser (and the
+  `.st-sidebar` width when the dev gallery answers).
+- `package.json`: `check:visual`, `check:staffstyle`. `docs/STAFF-UI.md`: the
+  token section names `src/styles/staff.css`, T0 is marked done and T1 carries
+  the legacy-rule deletion.
+
+### Verification (fresh `rm -rf .next && npm run build && npm start`, port 3000)
+
+- `npm run contrast` PASS (all public + 4 staff palettes).
+- `npm run check:visual` PASS: no frozen path changed; data tokens 115 = 115,
+  UI-logic 147 = 147; 335 classes at base, 0 dropped, none stale in TSX.
+- `npm run check:staffstyle` PASS: 200 on the staff host, all four `<html>`
+  attributes, palette found in the served CSS, browser body `rgb(245,246,248)`
+  and ink `rgb(14,17,22)`; `/__staff` SKIP (dev-only, 404 in production).
+  WARN only: the six alias tokens (`--st-subtle`, `--st-border`,
+  `--st-accent-soft-2`, `--st-radius-card`, `--st-radius-ctl`,
+  `--st-pop-shadow`) are still served until T1/T2 delete their rules.
+- `npx tsc --noEmit` clean; `npm run lint` 0 errors (2 pre-existing warnings in
+  the frozen `src/lib/auth.ts`); `npm run check:links` OK; `npm run build` OK.
+- New logic: none (this phase touched CSS, the root layout attributes and
+  scripts only).
+
+## SESSION 12 (2026-10-28) — STAFF-UI T0 revised: public-site palette
+
+**Done: T0 (same phase, palette only) — the staff tokens, the contrast script,
+the dev gallery and `docs/STAFF-UI.md` now use the PUBLIC site colours instead
+of the warm terracotta set; `npm run contrast` PASS, `npx tsc --noEmit` clean,
+`npm run lint` 0 errors (2 pre-existing warnings in `src/lib/auth.ts`).
+Next: T1 — shell (StaffShell, Sidebar with groups, badges, collapse and the
+status card, Topbar, ProfileMenu, NotificationsPopover, role-based nav, page
+anatomy); T1 also owns the first `npm run build` and the staff host check.**
+
+Design source: the reference reel itself is not readable from here, so
+`docs/STAFF-UI.md` (the saved brief) stays the design spec; only its palette
+section changed.
+
+### What changed (palette)
+
+- `src/app/globals.css`, `.staff-theme`: page `#F5F6F8` (public paper), white
+  sidebar/surface, `--st-line #DDE1E7`, `--st-outline #7A8494`, ink/`#0E1116`,
+  muted `#566070`, accent `#2B44FF` (public link blue) for links, tab
+  underline, chart strokes, badges; accent-soft `#F0FBC4` (public signal lime)
+  for the active nav pill and selected tabs with ink text; black `#0E1116`
+  primary buttons (public ink) plus a new `--st-btn-hover #1A2029`; danger
+  `#991B1B`; tints renamed `lime/mint/rose/sky/sand` = `#F0FBC4`, `#DCF3E4`,
+  `#FBDDDA`, `#E4EBFF`, `#FBEDD2`; status triplets are the public ones
+  (`#14532D/#DCFCE7`, `#7C2D12/#FFEDD5`, `#991B1B/#FEE2E2`).
+- Light super tone = steel (`#1A2029` accent, `#E4E8EE` soft) matching the
+  public `--super`; dark theme = public ink page (`#0E1116`), surface
+  `#1A2029`, accent `#9CB2FF`, soft `#232B45`, light ink text.
+- Shared kit aliases now make `--primary` the black button (was the accent), so
+  old kit buttons stay black instead of turning blue. `.st-mark` (logo tile)
+  and `.st-btn[data-variant="primary"]` are black, `.st-header`/`.st-phonebar`
+  lost their 3px accent stripe (the T1 topbar replaces them).
+- `scripts/check-contrast.mjs`: 24 staff pairs per palette (added button hover,
+  renamed tints). Measured light/admin — ink on page 17.5, ink on surface 18.9,
+  muted on surface 6.4, accent on surface 6.2 / on page 5.8, accent-ink on
+  accent-soft 17.4, white on accent 6.2, white on button 18.9, ink on tints
+  14.8–17.4, ok 8.3 / warn 8.2 / err 6.8, outline 3.8; light/super accent on
+  surface 16.4; dark ink on surface 15.1, muted 7.7, accent 8.0, accent-ink on
+  soft 11.0, white on danger 6.5, outline 5.5. All PASS, including the rendered
+  hero backdrop.
+- `/__staff` (dev only): new "Өнгөний жишээ" block — black + outline button,
+  lime active pill, the three status pills and four tinted counter tiles; token
+  list now shows `--st-btn-hover` and `--st-tint-lime`. Copy lives in
+  `mn.staffKit`.
+- `docs/STAFF-UI.md` sections 1, 2, 6 (auth card), 12 and the title updated:
+  public paper page, lime active states, link-blue charts, black primary
+  buttons, with the verified ratios.
+
+### Verification and notes
+
+- Served CSS on a fresh `npm run dev` contains both tones (`--st-accent:
+  #2B44FF` and `#1A2029`) and the new tints; `/__staff` returned 200 with
+  `data-audience="staff"`.
+- Host header quirk: curl needs `Host: admin.zav.localhost:3000` (with the
+  port); without it the middleware answers 404.
+- A dev server is left running on 3000 for T1.
+
+## SESSION 11 (2026-10-28) — STAFF-UI T0: audit, warm tokens, dev gallery
+
+**Done: T0 (staff audit + the new token block for both themes and both tones;
+`npm run contrast` PASS). Next: T1 — shell (StaffShell, Sidebar with groups,
+badges, collapse and the status card, Topbar, ProfileMenu,
+NotificationsPopover, role-based nav, page anatomy); T1 also owns the first
+`npm run build` and the staff host check.**
+
+No earlier STAFF-UI phase is open: T0 is the first one. (The "D0 in progress"
+line in SESSION 9 belongs to the Slots redesign task, not to STAFF-UI.)
+
+### Audit at detection (nothing deleted yet — T1/T2 replace it)
+
+- `docs/STAFF-UI.md` did not exist in the repo; the brief is now saved there and
+  is the phase map for T0–T8.
+- Staff components, all in `src/components/staff/`: `StaffShell.tsx` (398 lines,
+  client: desktop header, phone top bar, bottom tab bar, "Бусад" sheet, bell
+  popover, profile menu, TextSizeSwitch, logout), `StaffFrame.tsx` (server: role
+  check, `stats()` badge counts, unread count, latest 5 notifications),
+  `StaffAuthFrame.tsx` (login/join/security card), `BulkBar.tsx`, `nav.tsx`,
+  `types.ts`, `ui.tsx` (PageHeader, Section, StatTile, Rows/Row, GroupLabel,
+  LoadBar, StaffNote, StaffEmpty, PageTabs, ButtonLink), `index.ts`.
+- Staff styles: one stylesheet only, `src/app/globals.css` (4,533 lines). The
+  staff part is the `html[data-audience="staff"]` density block, the
+  `.staff-theme` token block, 74 `.st-*` class rules (shell, nav, tabs, tiles,
+  rows, table, auth, phone bars) and `.page-container`. There is no
+  `src/styles/staff.css` yet.
+- Shell wiring: `src/app/staff/(admin|super)/layout.tsx` → `StaffFrame` →
+  `StaffShell`. `data-audience`, `data-staff-tone` and the `staff-theme` class
+  are rendered on `<html>` by `src/app/layout.tsx` from middleware headers, so
+  tokens need no layout change. `/security`, `/login`, `/join` bypass the shell.
+  `data-theme` is not set anywhere yet (that is T8).
+- Old palette: white page, white surfaces with 1px borders, teal accent
+  `#0f766e` (super `#134e4a`). Every raw hex sat in the `.staff-theme` block;
+  the only other raw staff colour was `background:#ffffff` on
+  `html[data-audience="staff"]`. Both are gone.
+
+### What changed (T0)
+
+- `src/app/globals.css`: the `.staff-theme` block now holds the warm operations
+  palette exactly as specified (warm grey page, near-white surface, terracotta
+  accent, black button, five pastel tints, status triplets, radii, soft shadow,
+  264px sidebar / 64px topbar). Added `.staff-theme[data-staff-tone="super"]`
+  (deeper terracotta) and `.staff-theme[data-theme="dark"]` (full dark palette,
+  `color-scheme: dark`). `html[data-audience="staff"] body` is `var(--st-bg)` +
+  `var(--st-ink)`. No other staff rule gained a raw colour.
+- The pre-redesign CSS still reads `--st-subtle`, `--st-border`,
+  `--st-accent-soft-2`, `--st-radius-card`, `--st-radius-ctl` and
+  `--st-pop-shadow`; they are aliases of the new tokens until T1/T2 delete the
+  rules that use them. Shared kit aliases (`--bg`, `--surface`, `--ink`,
+  `--primary`, …) point at the new tokens, so both audiences keep working.
+  Staff control height is now 44px (48px on coarse pointers) and rows 48px.
+- `scripts/check-contrast.mjs`: the staff section parses three blocks and
+  composes four palettes — light/admin, light/super, dark/admin, dark/super —
+  and runs 23 pairs per palette (text ≥ 4.5, tile text ≥ 7, borders ≥ 3): page,
+  sidebar and surface text, accent on surface/page, accent-ink on accent-soft,
+  on-accent on accent and accent-hover, on-btn on button, on-danger on danger,
+  the three status pills, outline on surface, ink on all five tints and
+  accent-ink on the peach tile. The public pairs are unchanged.
+- New dev gallery `src/app/staff/%5F%5Fstaff/page.tsx` (URL `/__staff` on the
+  staff host, `notFound()` in production): the four theme/tone previews with all
+  21 colour swatches, the type scale and a note that the component catalogue
+  arrives in T2. Copy lives in `mn.staffKit` (`src/lib/i18n/mn.ts`).
+
+### Findings
+
+1. A folder named `src/app/staff/__staff` is a Next **private folder**, so it is
+   never routed (the staff host returned 404 while `/_not-found` compiled). The
+   route has to be `%5F%5Fstaff`; middleware already maps `/__staff` to
+   `/staff/__staff`, so no middleware change was needed. Use the same trick for
+   any future `_`-prefixed route.
+2. The dark block must come **after** the super tone block: both selectors have
+   the same specificity, so dark then overrides `--st-accent` for both tones.
+   The spec defines no dark tone variant, and the contrast script composes the
+   palettes in that same order (`{…light, …super, …dark}`).
+3. `npm run contrast` prints staff ratios that match the brief: light ink on page
+   14.81, ink on surface 16.49, muted on page 6.17, accent on surface 5.18,
+   accent-ink on accent-soft 7.89, white on accent 5.41, outline 3.75, every tile
+   ≥ 13.36; dark ink on page 16.17, accent on surface 8.27, on-danger 5.51 (no
+   darkening needed), outline 4.62.
+4. Nothing in the token work changes data access, routes, auth or middleware;
+   no DB object was added, so `npm run verify` is not part of T0.
+
+### Checks (T0)
+
+| Check | Result |
+| --- | --- |
+| `npm run contrast` | PASS — public 16/16 + staff 23 pairs × 4 palettes; backdrop sampling SKIPped (no production server was running) |
+| `npx tsc --noEmit` | PASS |
+| `npm run lint` | PASS — only the 2 pre-existing unused `eslint-disable` warnings in `src/lib/auth.ts` |
+| `npm run density` | PASS — 2 staff-login checks, 0 failed, 28 skipped (no session); same as before |
+| `/__staff` on the staff host | 200, four theme/tone previews in the HTML |
+| `/__staff` on the site host | 404 (only the staff host rewrites to it) |
+| Staff `/login` | 200 with `data-audience="staff"` and the warm tokens |
+| `npm run build` | NOT RUN — scheduled for T1 per the brief |
+
+### Manual test checklist (T0, 5 lines)
+
+1. `npm run dev`, open `http://admin.zav.localhost:3000/__staff`: four swatch
+   panels (admin/super × light/dark); every swatch differs from its panel
+   background and the labels stay readable in all four.
+2. On the same page check the dark panels: dark page, near-black cards, the
+   dark-centred button swatch, no leftover teal anywhere.
+3. Open `http://admin.zav.localhost:3000/login`: warm grey page behind a
+   near-white card, black logo tile, readable labels.
+4. Open the same URL on `http://zav.localhost:3000/__staff`: 404.
+5. `npm run contrast` ends with "All contrast checks passed."
+
 ## SESSION 10 (2026-10-27) — FIX-1 Q0: measure first (no behaviour change)
 
 **Done: Q0 (verified twice, second time on a fresh build with no source change).

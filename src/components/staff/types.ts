@@ -5,7 +5,7 @@ export type StaffNavItem = {
   label: string;
   /** Extra path prefixes that also mark this item active. */
   match?: string[];
-  badge?: "jobs" | "newWorkers" | "staleJobs";
+  badge?: "jobs" | "newWorkers" | "staleJobs" | "alerts";
   attention?: boolean;
 };
 

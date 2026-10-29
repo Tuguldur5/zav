@@ -91,7 +91,6 @@ export default async function AdminWorkersPage({
   return (
     <>
       <PageHeader
-        title="Ажилчид"
         subtitle={`Нийт ${workers.length} ажилтан${q ? ` · хайлт: ${q}` : ""}`}
         actions={
           <form method="GET" className="st-note w-full sm:w-72">

@@ -119,7 +119,7 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
   return (
     <>
       <PageHeader
-        title={worker.full_name}
+        record={worker.full_name}
         subtitle={`${district ?? "Дүүрэг тодорхойгүй"} · ${assignmentRows.length} ажлын түүх`}
         actions={
           <Link

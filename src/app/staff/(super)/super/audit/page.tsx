@@ -60,7 +60,6 @@ export default async function SuperAuditPage({
   return (
     <>
       <PageHeader
-        title="Тохиргоо"
         subtitle={`Аудит · сүүлийн ${rows.length} мөр${params.entity ? ` · ${params.entity}` : ""}`}
         actions={
           <Link href={exportHref(params)} className="st-btn" data-variant="outline">

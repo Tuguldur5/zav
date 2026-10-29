@@ -108,18 +108,24 @@ export default async function AdminTodayPage() {
   return (
     <>
       <PageHeader
-        title="Өнөөдөр"
         subtitle="Өнөөдөр шийдэх зүйлс"
         actions={<ButtonLink href="/jobs?tab=new" variant="primary">Шинэ зарын пул</ButtonLink>}
       />
 
       <StatTiles>
-        <StatTile label="Шинэ зар" value={stats.pool_new ?? 0} href="/jobs?tab=new" icon={Briefcase} />
         <StatTile
-          label="Баталгаажуулах чөлөөт өдөр"
+          label="Шинэ зар"
+          value={stats.pool_new ?? 0}
+          href="/jobs?tab=new"
+          icon={Briefcase}
+          tint="mint"
+        />
+        <StatTile
+          label="Хүлээж буй өдөр"
           value={stats.pending_availability ?? 0}
           href="/calendar"
           icon={CalendarCheck}
+          tint="sand"
           attention={(stats.pending_availability ?? 0) > 0}
         />
         <StatTile
@@ -127,12 +133,14 @@ export default async function AdminTodayPage() {
           value={stats.offers_waiting ?? 0}
           href="/jobs?tab=mine"
           icon={MailQuestion}
+          tint="rose"
         />
         <StatTile
           label="Өнөөдрийн ажил"
           value={stats.today_jobs ?? 0}
           href="/jobs?tab=matched"
           icon={CheckCircle2}
+          tint="sky"
         />
       </StatTiles>
 

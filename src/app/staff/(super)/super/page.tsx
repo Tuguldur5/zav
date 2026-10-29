@@ -69,7 +69,6 @@ export default async function SuperDashboardPage() {
   return (
     <>
       <PageHeader
-        title="Самбар"
         subtitle="Шинэ ажилтан, админы ачаалал, авагдаагүй зар"
         actions={
           <ButtonLink href="/super/intake" variant="primary" icon={UserPlus}>

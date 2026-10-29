@@ -21,7 +21,6 @@ export default async function StaffNotificationsPage() {
   return (
     <>
       <PageHeader
-        title="Мэдэгдэл"
         subtitle={unread > 0 ? `Уншаагүй ${unread} мэдэгдэл` : "Бүгд уншсан"}
         actions={notifications.length > 0 ? <MarkAllReadButton /> : undefined}
       />

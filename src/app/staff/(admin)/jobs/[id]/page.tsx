@@ -141,7 +141,7 @@ export default async function AdminJobPage({ params }: { params: Promise<{ id: s
       </Link>
 
       <PageHeader
-        title={job.title}
+        record={job.title}
         subtitle={`${formatDateMn(job.job_date, false)} · ${slotLabels[job.job_slot]} · ${job.workers_needed} ажилтан`}
         actions={<StatusPill status={job.status} table={jobStatus} />}
       />

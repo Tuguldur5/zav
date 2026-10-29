@@ -56,7 +56,6 @@ export default async function SuperJobsPage({
   return (
     <>
       <PageHeader
-        title="Зарууд"
         subtitle={tab === "active" ? `Идэвхтэй ${jobs.length} зар` : `Авагдаагүй ${jobs.length} зар`}
       />
 

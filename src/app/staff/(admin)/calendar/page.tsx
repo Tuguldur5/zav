@@ -47,7 +47,6 @@ export default async function AdminCalendarPage() {
   return (
     <>
       <PageHeader
-        title="Календар"
         subtitle="Квадрат дээр дарж ажилтны өдрийг тэмдэглэнэ уу. Мэдэгдэл шууд ажилтны календарт орно."
       />
 
