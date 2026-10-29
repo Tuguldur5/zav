@@ -1,6 +1,191 @@
 # Зав байна — Progress
 
-## SESSION 15 (2026-10-29) — STAFF-UI correction: one title per screen, a real accent system
+## SESSION 17 (2026-10-29) — admin load time: fewer round trips, shell first
+
+**Done: the admin slowness fix the owner asked for. Next: V1 (sidebar + shell)
+from session 16's plan.**
+
+### Measurement (why it felt slow)
+
+Every Supabase request from this machine costs **~210-300 ms** (first call 900 ms);
+four parallel requests still take ~213 ms, so the cost is round trips, not CPU.
+A staff page made 5-7 sequential waves of them: middleware `auth.getUser()`,
+`getCurrentUser()`, `loadProfile()` **twice** (layout + page), the frame's four
+queries, then the page's own waves. Staff `/login` (no data) answered in 50-80 ms,
+which confirms the query path is the cause, not CSS or the bundle.
+
+### What changed
+
+1. **`loadProfile` is wrapped in React `cache()`** (`src/lib/auth.ts`). The staff
+   layout and the page share ONE profile round trip per request instead of two.
+   `cache` is request-scoped; nothing is shared between users or requests.
+2. **`/today` fetches `stats()` in the same wave** as the pool/availability/
+   offers queries (it was awaited before them). One wave less.
+3. **Districts + skills are read once through `src/lib/reference.ts`** with the
+   anon key and `next: { revalidate: 300 }`. `db/02_rls.sql` grants `select` on
+   both tables to `anon, authenticated` with `using (true)`, so the cached rows
+   are exactly the rows the staff client returned. `/today`, `/jobs`,
+   `/jobs/[id]` (was 4 reference queries), `/workers/[id]` and `/super/jobs` use
+   it; `/jobs` also merges the catalog read into the jobs wave. Super pages that
+   need full rows (`select *` for catalog/intake) keep their own queries.
+4. **The page slot streams**: `StaffFrame` wraps `children` in a Suspense
+   boundary with `StaffPageSkeleton`, so the sidebar/topbar paint after the
+   shell's own data and the page's queries arrive afterwards instead of holding
+   the whole response.
+
+Effect per page: one profile trip and one page wave removed everywhere, two
+reference trips removed per list page, four on a job detail; the frame is on
+screen ~1 wave earlier. On this connection that is roughly 0.4-0.8 s of server
+time per admin page, more on mobile data.
+
+### Verification
+
+- Fresh `rm -rf .next && npm run build && npm start`: build OK, staff host 200s,
+  `check:colors` PASS, `contrast` PASS, `check:staffstyle` PASS (CSS 200, v3
+  tokens served), `check:links` PASS, `npx tsc --noEmit` clean, `npm run lint`
+  0 errors (same 2 pre-existing warnings).
+- `npm run check:visual` PASS with two documented exceptions: `src/lib/auth.ts`
+  and the new `src/lib/reference.ts` (both owner-approved in this session) and a
+  data-token delta 115 -> 103 (the 12 reference reads that moved into the cached
+  helper). The script lists both as WARN with the reason, not as silent passes.
+- **NOT verified: the signed-in timing.** There is no staff session available in
+  this environment, so `/today`, `/jobs`, `/super` cannot be timed end to end
+  here. The change is verified by build/type/lint, by the checks above and by
+  the query count per page; a `PERF_LOG=1` reload by the owner is the honest
+  final measurement.
+
+### Trap repeated: port 3000 orphans
+
+On Windows the npm wrapper can be killed while the Next child keeps the port;
+a second `npm start` then fails with EADDRINUSE and the OLD process serves HTML
+that references CSS files a newer `rm -rf .next` build no longer has (HTTP 400
+for every stylesheet, which looks like a `check:staffstyle` failure). Kill every
+listener before a run and verify the served CSS exists:
+
+```
+for pid in $(netstat -ano | grep LISTENING | grep ":3000" | awk '{print $5}' | sort -u); do
+  taskkill //PID $pid //T //F
+done
+```
+
+## SESSION 16 (2026-10-29) — STAFF-UI v3, V0: diagnosis and the ink/lime/paper tokens
+
+**Done: V0. Next: V1 — sidebar and shell (section 2), `scripts/check-sidebar.mjs`,
+`npm run build`.**
+
+V0 is closed on a fresh `rm -rf .next && npm run build && npm start`:
+`npm run check:colors` PASS, `npm run contrast` PASS (both tones, all pairs),
+`npm run check:staffstyle` PASS, `check:visual` PASS, `check:links` PASS,
+`npx tsc --noEmit` clean, `npm run lint` 0 errors (2 pre-existing warnings in the
+frozen `src/lib/auth.ts`).
+
+### The v3 brief replaced the v2 one
+
+`docs/STAFF-UI.md` is now the v3 instruction (ink + lime + paper, no
+indigo/violet, sidebar fix, page polish, phone layout, phases V0-V5). The v2
+phases T0-T8 are historical; the working tree was checkpointed first as
+`1a3ba47 "checkpoint before staff ui 3"` and tagged `pre-staff-ui-3`, which is
+now the base for `npm run check:visual`.
+
+### Sidebar collapse bug — cause (diagnosed, fix belongs to V1)
+
+1. The collapsed state lives only in the browser: `StaffShell` starts with
+   `useState(false)`, then a mount effect reads
+   `localStorage["zav_staff_nav_collapsed"] === "1"`. There is no cookie and no
+   server read, so the rail state is decided after hydration and any stored
+   value (including a stale one) is applied for every later visit.
+2. The only toggle is `.st-collapse` in the sidebar header, and the stylesheet
+   hides it in exactly the state it is needed:
+   `.st-sidebar[data-collapsed="1"] .st-collapse { display: none; }`
+   (`src/styles/staff.css`). Below 1024px the drawer hides it too. Once the rail
+   is collapsed there is **no visible control that expands it** — the reported
+   "stuck icon rail".
+3. The keyboard escape hatch exists (`Ctrl/Cmd+B`) but is discoverable only via
+   the `title` of the hidden button, so a user with a mouse has no path back.
+4. Breakpoints do not force the rail (no `@media` sets `data-collapsed`), but the
+   stored choice is never reset when the viewport grows, and the toggle has no
+   `aria-expanded`/`aria-controls` and is 30x30px (below the 44px target).
+
+V1 replaces 1-4: cookie `st_sb`, server-rendered state, a toggle that is always
+visible (header chevron when expanded, under the logo when collapsed), 44px hit
+area, 248px/72px widths and 200ms motion.
+
+### What changed (V0)
+
+- `src/styles/staff.css` — the token block is now the v3 palette: paper
+  `#F5F6F8`, surface white, row `#F1F3F6`, ink `#0E1116`/`#1A2029`, muted
+  `#566070`, signal `#C8F135` (hover `#B7E014`, soft `#F0FBC4`), green `#3F6212`,
+  ink primary button, the three status triplets, `--st-logo-bg/-fg`, 16px card
+  radius, 248px sidebar, 64px topbar. The super tone now only inverts the logo
+tile. The v2 dark theme block and the violet accent are deleted; the tokens the
+  not-yet-rebuilt rules still read (`--st-accent*`, `--st-hover`, `--st-tint*`,
+  `--st-shadow*`, ...) are aliases of the v3 tokens in the same block, so there
+  is a single source for every colour. Shadows are `none` (flat cards); the
+  popover keeps the allowed `--st-shadow-pop`. The lime left bars on the intro
+  band and unread notices became `--st-green` (lime is fill-only); the logo
+  tile reads `--st-logo-bg/-fg`; focus ring is 2px ink.
+- `scripts/check-colors.mjs` (`npm run check:colors`, new) — scans
+  `src/styles/*`, `src/components/staff/**`, `src/app/staff/**` and the compiled
+  `/.next/static/css` bundle: banned words (`indigo|violet|purple|fuchsia|blue-|
+  sky-`), the pre-v3 hex values, any cold hex (hue 190-300, saturation > 0.2,
+  chroma >= 16/255 so the palette's own cool neutrals pass) and any raw hex
+  outside the `.staff-theme` token block. Compiling is checked for legacy hexes
+  only (the shared bundle also carries the public palette).
+- `scripts/check-contrast.mjs` — the staff section now checks the two tones of the
+  one v3 palette (21 pairs): ink/muted on page, surface and row, ink on signal,
+  white on ink, green on white and on lime-soft, outline 3:1, the status pills,
+  ink on the three status tints and the logo mark. Measured admin: 17.49 page,
+  18.91 surface, 5.88/6.36/5.72 muted, 14.49 ink-on-signal, 17.38 ink-on-lime-soft,
+  7.08 green-on-white, 6.50 green-on-lime-soft, 3.78 outline, 8.30/8.18/6.80 pills.
+- `scripts/check-staffstyle.mjs` — palette assertions moved to the v3 tokens
+  (`--st-bg #F5F6F8`, `--st-signal #C8F135`, `--st-btn #0E1116`), the v2 violet
+  hexes joined the legacy block, the gallery width assertion is 248px.
+  `scripts/check-staff-redesign.mjs` expectations follow the palette (lime nav,
+  ink primary button, lime brand mark); it is not part of V0 and the v3 shell
+  check arrives as `check:sidebar` in V1.
+- `/__staff` (dev only, 404 in production — verified) now lists the v3 tokens
+  and the two tones; the `mn.staffKit` copy describes ink/lime/paper instead of
+  the link blue. `StaffKitDemo` lost its "indigo/violet" labels.
+
+### Findings worth keeping
+
+1. **A second server on port 3000 breaks host testing.** Two processes (an old
+   `next start` on `0.0.0.0/[::]` and the new one on `127.0.0.1`) answered at
+   once; each middleware rewrite is a self-request to `http://localhost:3000/...`,
+   so it landed on the OLD process, whose per-process `x-zav-internal` token did
+   not match, and every staff/customer/worker URL returned the middleware 404.
+   Kill every listener on 3000 before a verification run
+   (`netstat -ano | grep :3000`), then `npm start` once.
+2. **A build made while a server holds `.next` can ship broken vendor chunks**
+   (`Cannot find module './vendor-chunks/@swc.js'` -> 500 on every host). The
+   sequence that is reliable: stop the server, `rm -rf .next`, build, start.
+3. **The palette's own ink is technically a cold hue** (`#0E1116` is HSL hue 218,
+   saturation 0.22). A hue-only guard would flag the spec's own colours, so
+   `check:colors` requires chroma >= 16/255 as well; real indigo/violet values
+   have 100+.
+4. The v3 brief defines no dark theme, so `data-theme="dark"` has no block any
+   more; the root layout still writes `data-theme="light"` (unchanged,
+   server-side) and both real tones pass contrast.
+
+### Checks (fresh production build, one server)
+
+| Check | Result |
+| --- | --- |
+| `npm run check:colors` | PASS — 59 staff files + 2 compiled CSS, no legacy/cold/out-of-block colour |
+| `npm run contrast` | PASS — public + 21 staff pairs x admin, super |
+| `npm run check:staffstyle` | PASS — 200 on the staff host, v3 tokens in the served CSS, body `rgb(245,246,248)`, ink `rgb(14,17,22)`, no page-level H1 |
+| `npm run check:visual` | PASS — no frozen path, data 115 / UI 151 unchanged, 0 dropped classes |
+| `npm run check:links` | PASS |
+| `npx tsc --noEmit` / `npm run lint` | clean / 0 errors (2 pre-existing warnings) |
+| Served staff CSS | `--st-bg:#F5F6F8`, `--st-signal:#C8F135`, `--st-btn:#0E1116`, `--st-sidebar-w:248px`; no `#5B3DF5`, `#1B2BD6`, no `indigo`/`violet` |
+| `/__staff` on the staff host (production) | 404 as designed |
+
+Not verified: the signed-in pages themselves (no seeded session), so the look of
+`/today` and `/super` is still the v2 layout painted with v3 colours until V2.
+The lime tint aliases make several tiles look alike until `StatTile` is rebuilt
+in V2 — expected at V0, not a regression to keep.
+
+## SESSION 15 (2026-10-29) — STAFF-UI correction: one title per screen, a real accent system (v2, superseded by v3)
 
 **Done: the T1+T2 correction the owner asked for. Next: T3 (dashboard charts +
 job cards/board).**

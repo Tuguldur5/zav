@@ -112,52 +112,46 @@ function run(pairs, kind) {
 run(textPairs, "Public");
 
 /**
- * Staff: operations dashboard in the public site's palette. The palette is
- * checked four times because <html> carries both a theme (light/dark) and a
- * tone (admin/super). Text pairs need 4.5:1, tile text 7:1 and borders/icons
- * 3:1.
+ * Staff: ink + lime + paper, the public site's base colours. v3 has one light
+ * palette; the super tone only inverts the logo tile. Text needs 4.5:1, text on
+ * a tile 7:1, borders/icons 3:1. Lime is a fill, so the pairs always put ink on
+ * lime and never lime on a light surface.
  */
-const staffLight = block(".staff-theme {", staffCss);
+const staffBase = block(".staff-theme {", staffCss);
 const staffSuperTone = block('.staff-theme[data-staff-tone="super"]', staffCss);
-const staffDark = block('.staff-theme[data-theme="dark"]', staffCss);
 
 const staffThemes = [
-  ["light / admin", { ...staffLight }],
-  ["light / super", { ...staffLight, ...staffSuperTone }],
-  ["dark / admin", { ...staffLight, ...staffDark }],
-  ["dark / super", { ...staffLight, ...staffSuperTone, ...staffDark }],
+  ["admin", { ...staffBase }],
+  ["super", { ...staffBase, ...staffSuperTone }],
 ];
 
 /** [foreground, background, label, minimum]. */
 const staffPairs = [
   ["st-ink", "st-bg", "ink on page", 7],
   ["st-ink", "st-surface", "ink on surface", 7],
-  ["st-ink", "st-sidebar", "ink on sidebar", 7],
+  ["st-ink", "st-row", "ink on row", 7],
   ["st-muted", "st-bg", "muted on page", 4.5],
   ["st-muted", "st-surface", "muted on surface", 4.5],
-  ["st-muted", "st-sidebar", "muted on sidebar", 4.5],
-  ["st-accent-ink", "st-surface", "accent text on surface", 4.5],
-  ["st-accent-ink", "st-bg", "accent text on page", 4.5],
-  ["st-accent-ink", "st-accent-soft", "accent ink on accent soft", 7],
-  ["st-on-accent", "st-accent", "on-accent on accent", 4.5],
-  ["st-on-accent", "st-accent-hover", "on-accent on accent hover", 4.5],
-  ["st-on-btn", "st-btn", "on-btn on button", 7],
-  ["st-on-btn", "st-btn-hover", "on-btn on button hover", 7],
-  ["st-on-danger", "st-danger", "on-danger on danger", 4.5],
+  ["st-muted", "st-row", "muted on row", 4.5],
+  ["st-ink", "st-signal-soft", "ink on signal soft", 7],
+  ["st-on-btn", "st-btn", "white on button", 4.5],
+  ["st-on-btn", "st-btn-hover", "white on button hover", 4.5],
+  ["st-on-signal", "st-signal", "ink on signal", 4.5],
+  ["st-on-signal", "st-signal-hover", "ink on signal hover", 4.5],
+  ["st-green", "st-surface", "green on surface", 4.5],
+  ["st-green", "st-signal-soft", "green on signal soft", 4.5],
+  ["st-outline", "st-surface", "outline on surface", 3],
+  ["st-logo-fg", "st-logo-bg", "logo mark", 4.5],
   ["st-ok", "st-ok-bg", "success pill", 4.5],
   ["st-warn", "st-warn-bg", "warning pill", 4.5],
   ["st-err", "st-err-bg", "error pill", 4.5],
-  ["st-outline", "st-surface", "outline on surface", 3],
-  ["st-ink", "st-tint-lime", "ink on lime tile", 7],
-  ["st-ink", "st-tint-mint", "ink on mint tile", 7],
-  ["st-ink", "st-tint-rose", "ink on rose tile", 7],
-  ["st-ink", "st-tint-sky", "ink on sky tile", 7],
-  ["st-ink", "st-tint-sand", "ink on sand tile", 7],
-  ["st-accent-ink", "st-tint-lime", "accent ink on lime tile", 7],
+  ["st-ink", "st-ok-bg", "ink on success tint", 7],
+  ["st-ink", "st-warn-bg", "ink on warning tint", 7],
+  ["st-ink", "st-err-bg", "ink on error tint", 7],
 ];
 
 for (const [themeLabel, palette] of staffThemes) {
-  console.log(`\nStaff token pairs — ${themeLabel}`);
+  console.log(`\nStaff token pairs — ${themeLabel} tone`);
   for (const [fgKey, bgKey, label, minimum] of staffPairs) {
     const fg = palette[fgKey];
     const bg = palette[bgKey];

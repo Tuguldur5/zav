@@ -22,6 +22,7 @@ import {
 import { StatusPill } from "@/components/ui/StatusPill";
 import { assignmentStatus, availabilityStatus, jobStatus, slotLabels } from "@/lib/status";
 import { formatDateMn, todayISO } from "@/lib/dates";
+import { getReferenceData } from "@/lib/reference";
 import type { Assignment, Availability, Job } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -42,11 +43,12 @@ type PoolJob = Pick<
 export default async function AdminTodayPage() {
   const { supabase } = await requireRole(["admin"]);
   const today = todayISO();
-  const { data: statsData } = await supabase.rpc("stats");
-  const stats = (statsData ?? {}) as Stats;
 
-  const [poolResult, availabilityResult, offersResult, districtResult, skillResult] =
+  // One wave: stats is independent of the queue queries, and the catalog pair
+  // comes from the cached reference reader (see src/lib/reference.ts).
+  const [statsResult, poolResult, availabilityResult, offersResult, reference] =
     await Promise.all([
+      supabase.rpc("stats"),
       supabase.rpc("pool_jobs"),
       supabase.from("availability").select("*").eq("day", today).order("status"),
       supabase
@@ -55,26 +57,14 @@ export default async function AdminTodayPage() {
         .eq("status", "offered")
         .order("created_at", { ascending: false })
         .limit(6),
-      supabase.from("districts").select("id, name"),
-      supabase.from("skills").select("id, name"),
+      getReferenceData(),
     ]);
 
+  const stats = (statsResult.data ?? {}) as Stats;
   const pool = ((poolResult.data as PoolJob[] | null) ?? []).slice(0, 6);
   const availability = (availabilityResult.data as Availability[] | null) ?? [];
   const offers = (offersResult.data as Assignment[] | null) ?? [];
-
-  const districtMap = new Map(
-    ((districtResult.data as Array<{ id: string; name: string }> | null) ?? []).map((row) => [
-      row.id,
-      row.name,
-    ]),
-  );
-  const skillMap = new Map(
-    ((skillResult.data as Array<{ id: string; name: string }> | null) ?? []).map((row) => [
-      row.id,
-      row.name,
-    ]),
-  );
+  const { districtMap, skillMap } = reference;
 
   const workerIds = [
     ...new Set([...availability.map((row) => row.worker_id), ...offers.map((row) => row.worker_id)]),

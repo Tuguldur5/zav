@@ -26,7 +26,7 @@ export function StaffKitDemo() {
   return (
     <main className="mx-auto flex max-w-[1280px] flex-col gap-8 p-4 pb-24">
       <header>
-        <h1 className="text-[24px] font-semibold">Staff kit — v2</h1>
+        <h1 className="text-[24px] font-semibold">Staff kit — v3</h1>
         <p className="text-[14px] text-[color:var(--st-muted)]">
           Зөвхөн хөгжүүлэлтийн үед. Бүх утга нь жишээ бөгөөд production хуудсанд ашиглагдахгүй.
         </p>
@@ -39,7 +39,7 @@ export function StaffKitDemo() {
           data-staff-tone={tone}
         >
           <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-[color:var(--st-muted)]">
-            {tone === "admin" ? "Админ тон — индиго #1B2BD6" : "Супер тон — виолет #5B3DF5"}
+            {tone === "admin" ? "Админ" : "Супер админ"}
           </p>
 
           <PageHeader

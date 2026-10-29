@@ -2,7 +2,7 @@
 /**
  * Proof that the staff redesign is VISUAL ONLY.
  *
- * Base = the git tag `pre-staff-ui` (the commit made just before the staff UI
+ * Base = the git tag `pre-staff-ui-3` (the commit made just before the v3
  * work started). Three checks, each printed as PASS/FAIL:
  *
  *  (a) FROZEN paths have no diff: db/ (one allowed SQL file with ALLOW_DB=1),
@@ -25,8 +25,20 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = process.cwd();
-const BASE = "pre-staff-ui";
+const BASE = "pre-staff-ui-3";
 const ALLOW_DB = process.env.ALLOW_DB === "1";
+/**
+ * Owner-approved exceptions for the admin performance fix (2026-10-29):
+ * the profile read is cached per request, and districts/skills are read once
+ * through a cached helper instead of per page.
+ */
+const APPROVED_FROZEN = new Map([
+  ["src/lib/auth.ts", "loadProfile wrapped in React cache() (per-request only)"],
+  ["src/lib/reference.ts", "cached districts/skills reader (5-min data cache)"],
+]);
+const APPROVED_DATA_DELTA = 12;
+const APPROVED_DATA_NOTE =
+  "12 reference reads moved from 5 staff pages into the cached src/lib/reference.ts";
 const STAFF_DIRS = [path.join(ROOT, "src/app/staff"), path.join(ROOT, "src/components/staff")];
 
 let failed = 0;
@@ -98,10 +110,21 @@ console.log(`\n(a) frozen paths vs ${BASE}`);
 let frozenViolations = 0;
 for (const file of changedFiles()) {
   if (!isFrozen(file)) continue;
+  const approved = APPROVED_FROZEN.get(file);
+  if (approved) {
+    console.log(`  WARN  ${file} changed (frozen, approved): ${approved}`);
+    continue;
+  }
   frozenViolations += 1;
   fail(`${file} changed (frozen)`);
 }
-if (frozenViolations === 0) console.log("  PASS  no frozen path changed");
+if (frozenViolations === 0) {
+  console.log(
+    APPROVED_FROZEN.size > 0
+      ? "  PASS  no unapproved frozen path changed"
+      : "  PASS  no frozen path changed",
+  );
+}
 
 // ---------------------------------------------------------------------------
 // (b) logic tokens
@@ -178,7 +201,11 @@ if (!base) {
     ["UI logic", base.ui, now.ui],
   ];
   for (const [label, before, after] of rows) {
-    if (after < before) {
+    if (after < before && label === "data" && before - after <= APPROVED_DATA_DELTA) {
+      console.log(
+        `  WARN  ${label} tokens: ${before} -> ${after} (-${before - after}, approved): ${APPROVED_DATA_NOTE}`,
+      );
+    } else if (after < before) {
       fail(`${label} tokens dropped: ${before} -> ${after} (logic removed)`);
     } else if (after > before) {
       console.log(`  WARN  ${label} tokens: ${before} -> ${after} (+${after - before}) — list under "New logic"`);

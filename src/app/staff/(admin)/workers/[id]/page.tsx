@@ -12,6 +12,7 @@ import { MonthCalendar } from "@/components/app/MonthCalendar";
 import type { DayMark } from "@/components/ui/Calendar";
 import { profileStatus, slotLabels } from "@/lib/status";
 import { formatDateMn } from "@/lib/dates";
+import { getReferenceData } from "@/lib/reference";
 import type { Assignment, Availability, Profile } from "@/lib/types";
 import { WorkerNoteEditor } from "./WorkerNoteEditor";
 import { ContactLogBar } from "./ContactLogBar";
@@ -36,7 +37,7 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
     assignmentsResult,
     skillsResult,
     noteResult,
-    districtResult,
+    reference,
     pushResult,
   ] = await Promise.all([
     supabase.from("worker_details").select("*").eq("worker_id", id).maybeSingle(),
@@ -49,11 +50,7 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
       .limit(20),
     supabase.from("worker_skills").select("*").eq("worker_id", id),
     supabase.rpc("worker_staff_note", { p_worker: id }),
-    supabase
-      .from("districts")
-      .select("name")
-      .eq("id", worker.district_id ?? "")
-      .maybeSingle(),
+    getReferenceData(),
     supabase.rpc("worker_push_status", { p_worker_id: id }),
   ]);
   const pushEnabled = Boolean(pushResult.data);
@@ -74,13 +71,8 @@ export default async function AdminWorkerPage({ params }: { params: Promise<{ id
     (row) => row.skill_id,
   );
   const note = noteResult.data as string | null;
-  const district = districtResult.data?.name as string | undefined;
-
-  const skillCatalog = (await supabase.from("skills").select("id, name")).data as Array<{
-    id: string;
-    name: string;
-  }> | null;
-  const skillMap = new Map((skillCatalog ?? []).map((row) => [row.id, row.name]));
+  const district = reference.districtMap.get(worker.district_id ?? "");
+  const { skillMap } = reference;
 
   const jobIds = [...new Set(assignmentRows.map((row) => row.job_id))];
   let jobTitles = new Map<string, { title: string; job_date: string; status: string }>();

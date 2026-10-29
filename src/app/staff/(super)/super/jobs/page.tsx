@@ -5,6 +5,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { jobStatus, slotLabels } from "@/lib/status";
 import { formatDateMn } from "@/lib/dates";
+import { getReferenceData } from "@/lib/reference";
 import type { Job } from "@/lib/types";
 import { JobControls } from "./JobControls";
 
@@ -26,32 +27,20 @@ export default async function SuperJobsPage({
   const tab: TabId = tabs.some((item) => item.id === params.tab) ? (params.tab as TabId) : "active";
   const { supabase } = await requireRole(["super_admin"]);
 
-  const [loadsResult, districtResult, skillResult] = await Promise.all([
+  let query = supabase.from("jobs").select("*");
+  if (tab === "active") query = query.in("status", ["claimed", "matched", "confirmed"]);
+  else query = query.eq("status", "new");
+
+  const [loadsResult, reference, jobsResult] = await Promise.all([
     supabase.rpc("admin_loads"),
-    supabase.from("districts").select("id, name"),
-    supabase.from("skills").select("id, name"),
+    getReferenceData(),
+    query.order("created_at", { ascending: false }).limit(100),
   ]);
   const admins = (
     (loadsResult.data as Array<{ id: string; full_name: string }> | null) ?? []
   ).map((row) => ({ id: row.id, full_name: row.full_name }));
-  const districtMap = new Map(
-    ((districtResult.data as Array<{ id: string; name: string }> | null) ?? []).map((row) => [
-      row.id,
-      row.name,
-    ]),
-  );
-  const skillMap = new Map(
-    ((skillResult.data as Array<{ id: string; name: string }> | null) ?? []).map((row) => [
-      row.id,
-      row.name,
-    ]),
-  );
-
-  let query = supabase.from("jobs").select("*");
-  if (tab === "active") query = query.in("status", ["claimed", "matched", "confirmed"]);
-  else query = query.eq("status", "new");
-  const { data } = await query.order("created_at", { ascending: false }).limit(100);
-  const jobs = (data as Job[] | null) ?? [];
+  const { districtMap, skillMap } = reference;
+  const jobs = (jobsResult.data as Job[] | null) ?? [];
 
   return (
     <>

@@ -28,13 +28,24 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const HEADERS = { Host: STAFF_HOST, "X-Forwarded-Host": STAFF_HOST };
 
 const PALETTE = [
-  [/--st-bg:\s*var\(--paper\)/i, "--st-bg follows the public paper token"],
-  [/--st-accent:\s*var\(--signal\)/i, "--st-accent follows the public lime token"],
-  [/--st-btn:\s*var\(--signal\)/i, "--st-btn follows the public lime token"],
-  [/--st-accent-wash:/i, "--st-accent-wash (tinted rows and table heads)"],
+  [/--st-bg:\s*#f5f6f8/i, "--st-bg is the site paper"],
+  [/--st-signal:\s*#c8f135/i, "--st-signal is the site lime"],
+  [/--st-btn:\s*#0e1116/i, "--st-btn is ink"],
+  [/--st-signal-soft:/i, "--st-signal-soft (lime fills behind ink)"],
   [/--st-r-card:/i, "--st-r-card (staff radius tokens)"],
 ];
-const LEGACY_COLOURS = ["#0f766e", "#134e4a", "#f0fdfa", "#ccfbf1"];
+const LEGACY_COLOURS = [
+  "#0f766e",
+  "#134e4a",
+  "#f0fdfa",
+  "#ccfbf1",
+  "#1b2bd6",
+  "#5b3df5",
+  "#4526d9",
+  "#4a2ce0",
+  "#3b21c4",
+  "#f1edff",
+];
 const LEGACY_TOKENS = [
   "--st-subtle",
   "--st-border",
@@ -180,7 +191,7 @@ async function browserCheck() {
         const node = document.querySelector(".st-sidebar");
         return node ? getComputedStyle(node).width : null;
       });
-      if (sidebar) rows.push([sidebar === "264px", `.st-sidebar width ${sidebar}`]);
+      if (sidebar) rows.push([sidebar === "248px", `.st-sidebar width ${sidebar}`]);
     } else {
       lines.push("  SKIP  /__staff is dev-only (404 in production)");
     }

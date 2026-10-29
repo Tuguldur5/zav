@@ -33,6 +33,7 @@
     "push:worker": "node scripts/push-worker.mjs",
     "density": "node scripts/check-admin-density.mjs",
     "check:visual": "node scripts/check-visual-only.mjs",
+    "check:colors": "node scripts/check-colors.mjs",
     "check:staffstyle": "node scripts/check-staffstyle.mjs",
     "check:redesign": "node scripts/check-staff-redesign.mjs"
   },

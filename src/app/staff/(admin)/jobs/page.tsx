@@ -6,6 +6,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { jobStatus, slotLabels } from "@/lib/status";
 import { formatDateMn } from "@/lib/dates";
+import { getReferenceData } from "@/lib/reference";
 import type { Job } from "@/lib/types";
 import { ClaimJobButton } from "./ClaimJobButton";
 
@@ -42,35 +43,23 @@ export default async function AdminJobsPage({
   const tab: TabId = tabs.some((item) => item.id === params.tab) ? (params.tab as TabId) : "new";
   const { supabase, user } = await requireRole(["admin"]);
 
-  const [districtResult, skillResult] = await Promise.all([
-    supabase.from("districts").select("id, name"),
-    supabase.from("skills").select("id, name"),
-  ]);
-  const districtMap = new Map(
-    ((districtResult.data as Array<{ id: string; name: string }> | null) ?? []).map((row) => [
-      row.id,
-      row.name,
-    ]),
-  );
-  const skillMap = new Map(
-    ((skillResult.data as Array<{ id: string; name: string }> | null) ?? []).map((row) => [
-      row.id,
-      row.name,
-    ]),
-  );
-
-  let jobs: PoolJob[] = [];
-  if (tab === "new") {
-    const { data } = await supabase.rpc("pool_jobs");
-    jobs = (data as PoolJob[] | null) ?? [];
-  } else {
+  // The catalog is cached and independent of the tab query, so one wave covers
+  // both instead of a catalog wave followed by a jobs wave.
+  const jobsPromise = (async (): Promise<PoolJob[]> => {
+    if (tab === "new") {
+      const { data } = await supabase.rpc("pool_jobs");
+      return (data as PoolJob[] | null) ?? [];
+    }
     let query = supabase.from("jobs").select("*").eq("claimed_by", user.id);
     if (tab === "mine") query = query.in("status", ["claimed", "matched"]);
     if (tab === "matched") query = query.in("status", ["matched", "confirmed"]);
     if (tab === "done") query = query.in("status", ["done", "cancelled"]);
     const { data } = await query.order("job_date", { ascending: true });
-    jobs = (data as PoolJob[] | null) ?? [];
-  }
+    return (data as PoolJob[] | null) ?? [];
+  })();
+
+  const [reference, jobs] = await Promise.all([getReferenceData(), jobsPromise]);
+  const { districtMap, skillMap } = reference;
 
   return (
     <>

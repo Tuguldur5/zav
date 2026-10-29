@@ -13,7 +13,7 @@ import { chromium } from "playwright";
 
 const BASE = "http://localhost:3000";
 const ACCENT = "rgb(200, 241, 53)";
-const SUPER_ACCENT = "rgb(91, 61, 245)";
+const INK_BTN = "rgb(14, 17, 22)";
 const ACCENT_SOFT = "rgb(240, 251, 196)";
 const ACCENT_INK = "rgb(14, 17, 22)";
 
@@ -85,18 +85,16 @@ console.log("\n(b) accent system painted by the browser (light / admin)");
       markBg: mark ? getComputedStyle(mark).backgroundColor : "",
     };
   });
-  pass("active nav pill uses the accent", painted.navBg === ACCENT, painted.navBg);
+  pass("active nav pill uses the lime fill", painted.navBg === ACCENT, painted.navBg);
   pass("active nav label uses ink", painted.navColor === ACCENT_INK, painted.navColor);
   pass("active nav icon uses ink", painted.navIcon === ACCENT_INK, painted.navIcon);
-  pass("primary button uses the accent", painted.primaryBg === ACCENT, painted.primaryBg);
-  pass("intro band is accent-tinted", painted.headBg === ACCENT_SOFT, painted.headBg);
-  pass("intro band carries the accent bar", painted.headBar === ACCENT, painted.headBar);
-  pass("stat tile icon chip is accent-tinted", painted.tileIconBg === ACCENT_SOFT, painted.tileIconBg);
-  pass("brand mark is accent", painted.markBg === ACCENT, painted.markBg);
+  pass("primary button is ink", painted.primaryBg === INK_BTN, painted.primaryBg);
+  pass("stat tile icon chip is lime-tinted", painted.tileIconBg === ACCENT_SOFT, painted.tileIconBg);
+  pass("brand mark is lime", painted.markBg === ACCENT, painted.markBg);
   await context.close();
 }
 
-console.log("\n(c) super tone keeps the same system in violet");
+console.log("\n(c) super tone keeps the same system");
 {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
@@ -109,7 +107,7 @@ console.log("\n(c) super tone keeps the same system in violet");
     const el = document.querySelector('.st-nav-item[aria-current="page"]');
     return el ? getComputedStyle(el).backgroundColor : "";
   });
-  pass("super active nav uses the violet accent", nav === SUPER_ACCENT, nav);
+  pass("super active nav uses the lime fill", nav === ACCENT, nav);
   await context.close();
 }
 
@@ -132,7 +130,7 @@ console.log("\n(d) tabs use the accent for the selected pill");
       railBorder: rail ? getComputedStyle(rail).borderTopWidth : "",
     };
   });
-  pass("selected tab is an accent pill", tab.bg === ACCENT, tab.bg);
+  pass("selected tab is a lime pill", tab.bg === ACCENT, tab.bg);
   pass("selected tab label uses ink", tab.color === ACCENT_INK, tab.color);
   pass("tab rail is a bordered segmented control", tab.railBorder === "1px", tab.railBorder);
   await context.close();

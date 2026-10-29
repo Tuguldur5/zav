@@ -9,6 +9,7 @@ import { PhoneButton } from "@/components/ui/PhoneButton";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { assignmentStatus, jobStatus, slotLabels } from "@/lib/status";
 import { formatDateMn, formatMoney } from "@/lib/dates";
+import { getReferenceData } from "@/lib/reference";
 import type { Availability, Assignment, Job, Profile } from "@/lib/types";
 import { AssignmentActions, ReleaseJobButton } from "./JobDetailActions";
 import { ClaimJobButton } from "../ClaimJobButton";
@@ -29,22 +30,17 @@ export default async function AdminJobPage({ params }: { params: Promise<{ id: s
   const { supabase, user, profile } = await requireRole(["admin"]);
   const superAdmin = profile.role === "super_admin";
 
-  const { data: jobData } = await supabase.from("jobs").select("*").eq("id", id).maybeSingle();
+  // The job row and the cached catalog are independent: one wave for both.
+  const [jobResult, reference] = await Promise.all([
+    supabase.from("jobs").select("*").eq("id", id).maybeSingle(),
+    getReferenceData(),
+  ]);
+  const jobData = jobResult.data;
   if (!jobData) notFound();
   const job = jobData as Job;
   const canManage = superAdmin || job.claimed_by === user.id;
 
-  const [
-    districtResult,
-    skillResult,
-    customerResult,
-    assignmentResult,
-    workerDetailsResult,
-    skillCatalogResult,
-    districtCatalogResult,
-  ] = await Promise.all([
-    supabase.from("districts").select("name").eq("id", job.district_id).maybeSingle(),
-    supabase.from("skills").select("name").eq("id", job.skill_id).maybeSingle(),
+  const [customerResult, assignmentResult, workerDetailsResult] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, phone, district_id")
@@ -52,23 +48,11 @@ export default async function AdminJobPage({ params }: { params: Promise<{ id: s
       .maybeSingle(),
     supabase.from("assignments").select("*").eq("job_id", job.id).order("created_at"),
     supabase.from("worker_details").select("*").eq("admin_id", user.id).order("intake_status"),
-    supabase.from("skills").select("id, name"),
-    supabase.from("districts").select("id, name"),
   ]);
-  const skillNameMap = new Map(
-    ((skillCatalogResult.data as Array<{ id: string; name: string }> | null) ?? []).map((row) => [
-      row.id,
-      row.name,
-    ]),
-  );
-  const districtNameMap = new Map(
-    ((districtCatalogResult.data as Array<{ id: string; name: string }> | null) ?? []).map(
-      (row) => [row.id, row.name],
-    ),
-  );
+  const { districtMap: districtNameMap, skillMap: skillNameMap } = reference;
 
-  const district = districtResult.data?.name as string | undefined;
-  const skillName = skillResult.data?.name as string | undefined;
+  const district = districtNameMap.get(job.district_id);
+  const skillName = skillNameMap.get(job.skill_id);
   const customer = customerResult.data as ProfileRow | null;
   const knownAssignments = (assignmentResult.data as Assignment[] | null) ?? [];
   const workerIds = ((workerDetailsResult.data as Array<{ worker_id: string }> | null) ?? []).map(

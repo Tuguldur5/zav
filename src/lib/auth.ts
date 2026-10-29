@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
@@ -27,7 +28,13 @@ export function roleHome(role: Role): string {
   }
 }
 
-export async function loadProfile(id: string): Promise<Profile | null> {
+/**
+ * The caller's profile row. Wrapped in React `cache` so the staff layout and
+ * the page it renders share ONE round trip per request instead of two (the
+ * profile query costs ~200 ms against the hosted database). `cache` is
+ * request-scoped, so nothing is shared between users or requests.
+ */
+export const loadProfile = cache(async (id: string): Promise<Profile | null> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
@@ -50,7 +57,7 @@ export async function loadProfile(id: string): Promise<Profile | null> {
   if (consentError) throw new Error(`Unable to load profile consent: ${consentError.message}`);
 
   return { ...profile, ...consent } as Profile;
-}
+});
 
 /** For pages that only need a signed-in user (auth screens, callback). */
 export async function getViewer() {

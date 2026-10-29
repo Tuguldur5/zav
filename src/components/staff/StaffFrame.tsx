@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
 import { relativeHourLabel } from "@/lib/dates";
 import { StaffShell } from "./StaffShell";
+import { StaffPageSkeleton } from "./StaffPageSkeleton";
 import type { Role } from "@/lib/types";
 import type { StaffNotice } from "./types";
 
@@ -69,7 +71,8 @@ export async function StaffFrame({
       mfaEnabled={aal.data?.nextLevel === "aal2"}
       lastSignIn={user.last_sign_in_at ? relativeHourLabel(user.last_sign_in_at) : null}
     >
-      {children}
+      {/* The frame paints first; the page's own queries stream into the slot. */}
+      <Suspense fallback={<StaffPageSkeleton />}>{children}</Suspense>
     </StaffShell>
   );
 }

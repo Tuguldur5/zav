@@ -5,58 +5,76 @@
  * never be beaten by an older rule in the global file. Every selector is scoped
  * under `.staff-theme` (the class the staff <html> carries) or
  * `html[data-audience="staff"]`; no public, customer or worker screen matches
- * here. All colours come from the `--st-*` tokens below (both themes, both
- * tones), so contrast is defined in one place and checked by `npm run contrast`.
+ * here. All colours come from the `--st-*` tokens below, so contrast is defined
+ * in one place and checked by `npm run contrast` / `npm run check:colors`.
  *
- * Layout: sidebar (264px, collapsible to a 72px rail) + column (topbar 64px +
+ * Palette (v3): the site's base colours — paper, white surfaces, ink and signal
+ * lime. No colour is written outside the token block. Lime is a fill only;
+ * green text and hairlines use --st-green. Status colours live in small pills.
+ *
+ * Layout: sidebar (248px, collapsible to a 72px rail) + column (topbar 64px +
  * scrolling content). Below 1024px the sidebar becomes a left drawer and a
  * bottom tab bar carries the four primary destinations.
  */
 
 /* Tokens ------------------------------------------------------------------ */
 .staff-theme {
-  /* Match the public Zav palette: signal-lime fills with ink foregrounds. */
-  --st-bg: var(--paper);
-  --st-sidebar: #FFFFFF;
+  /* The site's base palette: ink, lime, paper. Lime is a FILL only and always
+     carries ink text or icons; green text and hairlines use --st-green. */
+  --st-bg: #F5F6F8;
   --st-surface: #FFFFFF;
+  --st-row: #F1F3F6;
   --st-line: #DDE1E7;
-  --st-line-strong: #7A8494;
   --st-outline: #7A8494;
   --st-ink: #0E1116;
+  --st-ink-2: #1A2029;
   --st-muted: #566070;
-  --st-hover: var(--paper);
-  --st-accent: var(--signal);
-  --st-accent-hover: var(--signal-hover);
-  --st-accent-soft: var(--signal-soft);
-  --st-accent-wash: #F8FCEB;
-  --st-accent-ink: #0E1116;
-  --st-on-accent: var(--on-signal);
-  --st-btn: var(--signal);
-  --st-btn-hover: var(--signal-hover);
-  --st-on-btn: var(--on-signal);
-  --st-danger: #B42318;
-  --st-on-danger: #FFFFFF;
-  --st-tint-lime: #EFFBC6;
-  --st-tint-mint: #DDF3E6;
-  --st-tint-rose: #FBE0DE;
-  --st-tint-sky: #E9EEF0;
-  --st-tint-sand: #FCEDD3;
+  --st-signal: #C8F135;
+  --st-signal-hover: #B7E014;
+  --st-signal-soft: #F0FBC4;
+  --st-on-signal: #0E1116;
+  --st-green: #3F6212;
+  --st-btn: #0E1116;
+  --st-btn-hover: #1A2029;
+  --st-on-btn: #FFFFFF;
   --st-ok: #14532D;
   --st-ok-bg: #DCFCE7;
   --st-warn: #7C2D12;
   --st-warn-bg: #FFEDD5;
   --st-err: #991B1B;
   --st-err-bg: #FEE2E2;
-  --st-r-card: 18px;
-  --st-r-tile: 16px;
+  --st-logo-bg: #C8F135;
+  --st-logo-fg: #0E1116;
+  --st-r-card: 16px;
   --st-r-ctl: 12px;
   --st-r-pill: 999px;
-  --st-shadow: 0 1px 2px rgba(15, 18, 32, 0.04), 0 10px 30px rgba(15, 18, 32, 0.07);
-  --st-shadow-sm: 0 1px 2px rgba(15, 18, 32, 0.05);
-  --st-shadow-accent: 0 4px 12px rgba(14, 17, 22, 0.12);
-  --st-sidebar-w: 264px;
+  --st-sidebar-w: 248px;
   --st-rail-w: 72px;
-  --st-topbar-h: 68px;
+  --st-topbar-h: 64px;
+  --st-shadow-pop: 0 8px 24px rgba(14, 17, 22, 0.12);
+
+  /* Legacy names still read by rules that V1-V3 rebuild. Each one is an alias
+     of a v3 token above, so there is only one place a colour is defined. */
+  --st-sidebar: var(--st-surface);
+  --st-hover: var(--st-row);
+  --st-line-strong: var(--st-outline);
+  --st-accent: var(--st-signal);
+  --st-accent-hover: var(--st-signal-hover);
+  --st-accent-soft: var(--st-signal-soft);
+  --st-accent-wash: var(--st-signal-soft);
+  --st-accent-ink: var(--st-ink);
+  --st-on-accent: var(--st-on-signal);
+  --st-danger: var(--st-err);
+  --st-on-danger: var(--st-on-btn);
+  --st-tint-lime: var(--st-signal-soft);
+  --st-tint-mint: var(--st-signal-soft);
+  --st-tint-rose: var(--st-err-bg);
+  --st-tint-sky: var(--st-row);
+  --st-tint-sand: var(--st-warn-bg);
+  --st-r-tile: var(--st-r-card);
+  --st-shadow: none;
+  --st-shadow-sm: none;
+  --st-shadow-accent: none;
 
   --fs-body: 14px;
   --control-h: 44px;
@@ -65,58 +83,10 @@
   background: var(--st-bg);
 }
 
-/* Super keeps the same shape with a violet accent, so the two roles are never
-   confused while both themes stay in one system. */
+/* The only tone difference v3 keeps: the super admin's logo tile is inverted. */
 .staff-theme[data-staff-tone="super"] {
-  --st-accent: #5B3DF5;
-  --st-accent-hover: #4526D9;
-  --st-accent-soft: #F1EDFF;
-  --st-accent-wash: #F8F5FF;
-  --st-accent-ink: #3B21C4;
-  --st-on-accent: #FFFFFF;
-  --st-btn: #4A2CE0;
-  --st-btn-hover: #3B21C4;
-  --st-on-btn: #FFFFFF;
-  --st-shadow-accent: 0 8px 20px rgba(74, 44, 224, 0.26);
-}
-
-/* Dark theme wins over the super tone, so both tones share one accent in dark. */
-.staff-theme[data-theme="dark"] {
-  --st-bg: #0B0E17;
-  --st-sidebar: #111625;
-  --st-surface: #161C2B;
-  --st-line: #28303F;
-  --st-line-strong: #3A4456;
-  --st-outline: #8B96AB;
-  --st-ink: #F4F6FB;
-  --st-muted: #A8B2C4;
-  --st-hover: #1C2331;
-  --st-accent: var(--signal);
-  --st-accent-hover: var(--signal-hover);
-  --st-accent-soft: #2C330A;
-  --st-accent-wash: #1B2111;
-  --st-accent-ink: var(--st-ink);
-  --st-on-accent: var(--on-signal);
-  --st-btn: var(--signal);
-  --st-btn-hover: var(--signal-hover);
-  --st-on-btn: var(--on-signal);
-  --st-danger: #B3261E;
-  --st-on-danger: #FFFFFF;
-  --st-tint-lime: #2C330A;
-  --st-tint-mint: #14301F;
-  --st-tint-rose: #3A1D1D;
-  --st-tint-sky: #26303A;
-  --st-tint-sand: #33280F;
-  --st-ok: #86EFAC;
-  --st-ok-bg: #143222;
-  --st-warn: #FCD34D;
-  --st-warn-bg: #3A2E0E;
-  --st-err: #FCA5A5;
-  --st-err-bg: #3E1815;
-  --st-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.35);
-  --st-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
-  --st-shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
-  color-scheme: dark;
+  --st-logo-bg: var(--st-ink);
+  --st-logo-fg: var(--st-signal);
 }
 
 html[data-audience="staff"],
@@ -127,7 +97,7 @@ html[data-audience="staff"] body {
 }
 
 .staff-theme :focus-visible {
-  outline: 2px solid var(--st-outline);
+  outline: 2px solid var(--st-ink);
   outline-offset: 2px;
 }
 
@@ -237,13 +207,8 @@ html[data-audience="staff"] body {
   flex: none;
   place-items: center;
   border-radius: 12px;
-  background: var(--st-accent);
-  color: var(--st-on-accent);
-  box-shadow: var(--st-shadow-accent);
-}
-
-.st-mark:hover {
-  background: var(--st-accent-hover);
+  background: var(--st-logo-bg);
+  color: var(--st-logo-fg);
 }
 
 .st-brand-text {
@@ -619,7 +584,7 @@ html[data-audience="staff"] body {
   border: 1px solid var(--st-line);
   border-radius: var(--st-r-card);
   background: var(--st-surface);
-  box-shadow: var(--st-shadow);
+  box-shadow: var(--st-shadow-pop);
 }
 
 .st-pop-head {
@@ -651,7 +616,7 @@ html[data-audience="staff"] body {
 }
 
 .st-notice[data-unread] {
-  box-shadow: inset 3px 0 0 var(--st-accent);
+  box-shadow: inset 3px 0 0 var(--st-green);
 }
 
 .st-notice-title {
@@ -738,7 +703,7 @@ html[data-audience="staff"] body {
   flex-direction: column;
   gap: 12px;
   border: 1px solid var(--st-line);
-  border-left: 3px solid var(--st-accent);
+  border-left: 3px solid var(--st-green);
   border-radius: var(--st-r-card);
   background: var(--st-accent-soft);
   padding: 14px 18px;
@@ -890,13 +855,11 @@ html[data-audience="staff"] body {
   border-radius: var(--st-r-tile);
   background: var(--st-surface);
   padding: 18px;
-  box-shadow: var(--st-shadow-sm);
-  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  transition: border-color 140ms ease;
 }
 
 .st-tile:hover {
-  border-color: var(--st-accent);
-  box-shadow: var(--st-shadow);
+  border-color: var(--st-line-strong);
 }
 
 .st-tile[data-tint="lime"] {
@@ -1230,6 +1193,49 @@ html[data-audience="staff"] body {
   background: var(--st-surface);
   padding: 8px 12px;
   box-shadow: var(--st-shadow);
+}
+
+/* Streaming fallback for the page slot ------------------------------------ */
+.st-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 16px 96px;
+}
+
+.st-skel-block {
+  border-radius: var(--st-r-ctl);
+  background: var(--st-row);
+}
+
+.st-skel-head {
+  height: 56px;
+}
+
+.st-skel-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.st-skel-tile {
+  height: 92px;
+}
+
+.st-skel-card {
+  height: 220px;
+}
+
+@media (min-width: 768px) {
+  .st-skel-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .st-skel {
+    padding: 24px 32px 48px;
+  }
 }
 
 /* Phone: topbar, bottom tab bar, drawer ---------------------------------- */
